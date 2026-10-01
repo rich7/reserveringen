@@ -1,33 +1,48 @@
 <!--- v2.2 -->
-<style>
-  .booking-container { font-family: sans-serif; max-width: 650px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin: 0 auto; }
-  
-  /* Kalender styling */
-  .cal-legend { display: flex; gap: 15px; margin-bottom: 12px; font-size: 13px; justify-content: center; }
-  .legend-item { display: flex; align-items: center; gap: 5px; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-  
-  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px; text-align: center; }
-  .cal-day-head { font-weight: bold; font-size: 12px; padding: 4px; color: #555; }
-  .cal-day { padding: 10px 4px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; border: 2px solid transparent; }
-  .cal-day.disabled { cursor: not-allowed; opacity: 0.6; }
-  .cal-day.selected { border-color: #000; scale: 1.05; }
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tafel Reserveren</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f8; margin: 0; padding: 20px; }
+    .booking-container { max-width: 600px; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin: 0 auto; }
+    h2, h3 { color: #333; margin-top: 0; }
+    
+    /* Kalender styling */
+    .cal-legend { display: flex; gap: 15px; margin-bottom: 15px; font-size: 13px; justify-content: center; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+    
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 25px; }
+    .cal-day-head { font-weight: bold; font-size: 13px; text-align: center; color: #666; padding-bottom: 5px; }
+    .cal-day { padding: 12px 2px; border-radius: 8px; font-size: 14px; font-weight: bold; text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.2s ease; }
+    .cal-day:hover:not(.disabled) { transform: scale(1.05); }
+    .cal-day.disabled { cursor: not-allowed; opacity: 0.5; }
+    .cal-day.selected { border-color: #000 !important; transform: scale(1.08); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
 
-  /* Formulier styling */
-  .form-group { margin-bottom: 12px; }
-  .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 14px; }
-  .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-  .checkbox-group { display: flex; align-items: center; gap: 8px; }
-  .btn-submit { width: 100%; padding: 12px; background: #28a745; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
-  .btn-submit:disabled { background: #999; }
-</style>
+    /* Formulier styling */
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 14px; color: #444; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; }
+    .btn-submit { width: 100%; padding: 14px; background: #28a745; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
+    .btn-submit:hover { background: #218838; }
+    .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
+    
+    #loadingMsg { text-align: center; padding: 15px; font-weight: bold; color: #555; background: #eee; border-radius: 6px; grid-column: span 7; }
+  </style>
+</head>
+<body>
 
 <div class="booking-container">
-  <h3>1. Kies een Datum</h3>
+  <h2>Tafel Reserveren</h2>
   
+  <h3>1. Kies een datum</h3>
   <div class="cal-legend">
     <div class="legend-item"><span class="dot" style="background:#4ade80;"></span> Vrij</div>
-    <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span> Bijna Vol</div>
+    <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span> Beperkt</div>
     <div class="legend-item"><span class="dot" style="background:#f87171;"></span> Vol</div>
     <div class="legend-item"><span class="dot" style="background:#d1d5db;"></span> Gesloten</div>
   </div>
@@ -35,20 +50,20 @@
   <div id="calendarGrid" class="calendar-grid">
     <div class="cal-day-head">Zo</div><div class="cal-day-head">Ma</div><div class="cal-day-head">Di</div>
     <div class="cal-day-head">Wo</div><div class="cal-day-head">Do</div><div class="cal-day-head">Vr</div><div class="cal-day-head">Za</div>
+    <div id="loadingMsg">Kalender laden...</div>
   </div>
 
-  <h3>2. Reserveringsgegevens</h3>
+  <h3>2. Gegevens invullen</h3>
   <form id="restaurantBookingForm">
     <div class="form-group">
       <label>Gekozen Datum</label>
-      <input type="text" id="datum" name="datum" readonly placeholder="Klik op een datum hierboven" required>
+      <input type="text" id="datum" name="datum" readonly placeholder="Klik eerst op een gekleurde dag hierboven" required>
     </div>
 
     <div class="form-group">
       <label for="tijd">Tijdstip (per kwartier)</label>
       <select id="tijd" name="tijd" required>
         <option value="">Selecteer een tijdstip</option>
-        <!-- Ingevuld via JavaScript in kwartieren -->
       </select>
     </div>
 
@@ -59,22 +74,22 @@
 
     <div class="form-group">
       <label for="naam">Naam</label>
-      <input type="text" id="naam" name="naam" required>
+      <input type="text" id="naam" name="naam" placeholder="Volledige naam" required>
     </div>
 
     <div class="form-group">
       <label for="telefoon">Telefoonnummer</label>
-      <input type="tel" id="telefoon" name="telefoon" required>
+      <input type="tel" id="telefoon" name="telefoon" placeholder="06-12345678" required>
     </div>
 
     <div class="form-group">
       <label for="email">E-mailadres</label>
-      <input type="email" id="email" name="email" required>
+      <input type="email" id="email" name="email" placeholder="naam@voorbeeld.nl" required>
     </div>
 
     <div class="form-group checkbox-group">
-      <input type="checkbox" id="nieuwsbrief" name="nieuwsbrief">
-      <label for="nieuwsbrief" style="font-weight:normal;">Ik ontvang graag de nieuwsbrief</label>
+      <input type="checkbox" id="nieuwsbrief" name="nieuwsbrief" style="width:auto;">
+      <label for="nieuwsbrief" style="font-weight:normal; margin:0;">Ik ontvang graag de nieuwsbrief</label>
     </div>
 
     <button type="submit" class="btn-submit" id="submitBtn">Reservering Bevestigen</button>
@@ -83,55 +98,54 @@
 </div>
 
 <script>
+  // VERVANG ONDERSTAANDE URL DOOR JOUW EIGEN APPS SCRIPT WEB APP URL!
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyfqzHOmxW9xuZC0GZmYGHpypx8sSaalwT_SxCqZ1aYMgagMwH825Ez3yxmcevup8Z/exec";
 
-  // 1. Genereer tijdstippen per kwartier (17:00 tot 22:00)
+  // 1. Tijdstippen in kwartieren genereren (17:00 - 22:00)
   const tijdSelect = document.getElementById('tijd');
-  const startHour = 17;
-  const endHour = 22;
-
-  for (let h = startHour; h < endHour; h++) {
+  for (let h = 17; h < 22; h++) {
     for (let m = 0; m < 60; m += 15) {
       let hh = h < 10 ? '0' + h : h;
       let mm = m === 0 ? '00' : m;
-      let timeVal = `${hh}:${mm}`;
       let opt = document.createElement('option');
-      opt.value = timeVal;
-      opt.innerText = timeVal;
+      opt.value = `${hh}:${mm}`;
+      opt.innerText = `${hh}:${mm}`;
       tijdSelect.appendChild(opt);
     }
   }
 
-  // 2. Kalender ophalen via JSONP (voorkomt CORS foutmeldingen)
+  // 2. Kalender laden via JSONP script-injectie (werkt altijd op GitHub Pages)
   function loadCalendar() {
     const script = document.createElement('script');
-    script.src = SCRIPT_URL + "?callback=renderCalendar";
+    script.src = SCRIPT_URL + "?callback=renderCalendar&t=" + new Date().getTime();
     document.body.appendChild(script);
   }
 
-  function renderCalendar(calData) {
+  // Global callback functie voor de Apps Script respons
+  window.renderCalendar = function(calData) {
     const grid = document.getElementById('calendarGrid');
-    
-    // Verwijder oude dagen (behalve de headers Zo, Ma, Di...)
-    const dayElements = grid.querySelectorAll('.cal-day, .cal-empty');
-    dayElements.forEach(el => el.remove());
+    const loading = document.getElementById('loadingMsg');
+    if (loading) loading.remove();
+
+    // Verwijder eventuele eerder geladen dagen
+    const oldDays = grid.querySelectorAll('.cal-day, .cal-empty');
+    oldDays.forEach(el => el.remove());
 
     const dates = Object.keys(calData);
     if (dates.length === 0) return;
 
-    // Bepaal op welke dag van de week de eerste datum valt
-    const firstDateParts = dates[0].split('-');
-    const firstDateObj = new Date(firstDateParts[0], firstDateParts[1] - 1, firstDateParts[2]);
+    // Uitlijning eerste dag van de maand
+    const firstParts = dates[0].split('-');
+    const firstDateObj = new Date(firstParts[0], firstParts[1] - 1, firstParts[2]);
     let firstDayOfWeek = firstDateObj.getDay();
 
-    // Lege vakjes toevoegen voor de juiste uitlijning
     for (let i = 0; i < firstDayOfWeek; i++) {
       let emptyDiv = document.createElement('div');
       emptyDiv.className = 'cal-empty';
       grid.appendChild(emptyDiv);
     }
 
-    // Dagen opbouwen
+    // Bouw de gekleurde vakjes per dag
     dates.forEach(dateStr => {
       const item = calData[dateStr];
       const dayBox = document.createElement('div');
@@ -152,19 +166,19 @@
       }
       grid.appendChild(dayBox);
     });
-  }
+  };
 
-  // Start het laden van de kalender direct bij het openen van de pagina
+  // Start direct met laden
   loadCalendar();
 
-  // 3. Formulier versturen
+  // 3. Formulier versturen naar Google Sheet
   document.getElementById('restaurantBookingForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('statusMessage');
 
     if (!document.getElementById('datum').value) {
-      alert('Kies a.u.b. eerst een datum in de kalender.');
+      alert('Selecteer a.u.b. eerst een gekleurde datum in de kalender.');
       return;
     }
 
@@ -189,29 +203,20 @@
     })
     .then(() => {
       msg.style.color = "green";
-      msg.innerText = "Bedankt! Je reservering is succesvol geplaatst.";
+      msg.innerText = "Bedankt! Je reservering is ontvangen. Bevestiging is per e-mail verzonden.";
       document.getElementById('restaurantBookingForm').reset();
       btn.disabled = false;
       btn.innerText = "Reservering Bevestigen";
-      // Herlaad de kalender om de nieuwe bezetting/kleur te tonen
-      setTimeout(loadCalendar, 1000);
+      setTimeout(loadCalendar, 1500); // Herlaad kalender voor nieuwste status
     })
     .catch(() => {
       msg.style.color = "red";
-      msg.innerText = "Er ging iets mis. Probeer het opnieuw.";
+      msg.innerText = "Er ging iets mis bij het verzenden. Probeer het opnieuw.";
       btn.disabled = false;
       btn.innerText = "Reservering Bevestigen";
     });
   });
 </script>
 
-
-
-
-
-
-
-
-
-
-  
+</body>
+</html>
