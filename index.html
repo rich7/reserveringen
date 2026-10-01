@@ -101,27 +101,40 @@
     }
   }
 
-  // 2. Haal Kalenderstatus op bij Apps Script & Bouw Grid
-  fetch(SCRIPT_URL)
-    .then(res => res.json())
-    .then(calData => renderCalendar(calData))
-    .catch(() => alert('Kon kalenderdata niet laden.'));
+  // 2. Kalender ophalen via JSONP (voorkomt CORS foutmeldingen)
+  function loadCalendar() {
+    const script = document.createElement('script');
+    script.src = SCRIPT_URL + "?callback=renderCalendar";
+    document.body.appendChild(script);
+  }
 
   function renderCalendar(calData) {
     const grid = document.getElementById('calendarGrid');
-    const today = new Date();
     
-    // Vul lege cellen op voor juiste dag van de week
-    let firstDayOfWeek = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+    // Verwijder oude dagen (behalve de headers Zo, Ma, Di...)
+    const dayElements = grid.querySelectorAll('.cal-day, .cal-empty');
+    dayElements.forEach(el => el.remove());
+
+    const dates = Object.keys(calData);
+    if (dates.length === 0) return;
+
+    // Bepaal op welke dag van de week de eerste datum valt
+    const firstDateParts = dates[0].split('-');
+    const firstDateObj = new Date(firstDateParts[0], firstDateParts[1] - 1, firstDateParts[2]);
+    let firstDayOfWeek = firstDateObj.getDay();
+
+    // Lege vakjes toevoegen voor de juiste uitlijning
     for (let i = 0; i < firstDayOfWeek; i++) {
       let emptyDiv = document.createElement('div');
+      emptyDiv.className = 'cal-empty';
       grid.appendChild(emptyDiv);
     }
 
-    Object.keys(calData).forEach(dateStr => {
+    // Dagen opbouwen
+    dates.forEach(dateStr => {
       const item = calData[dateStr];
       const dayBox = document.createElement('div');
-      const dayNum = dateStr.split('-')[2];
+      const dayNum = parseInt(dateStr.split('-')[2], 10);
       
       dayBox.className = 'cal-day';
       dayBox.innerText = dayNum;
@@ -140,11 +153,19 @@
     });
   }
 
-  // 3. Verzenden van het formulier
+  // Start het laden van de kalender direct bij het openen van de pagina
+  loadCalendar();
+
+  // 3. Formulier versturen
   document.getElementById('restaurantBookingForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('statusMessage');
+
+    if (!document.getElementById('datum').value) {
+      alert('Kies a.u.b. eerst een datum in de kalender.');
+      return;
+    }
 
     btn.disabled = true;
     btn.innerText = "Bezig met verwerken...";
@@ -171,6 +192,8 @@
       document.getElementById('restaurantBookingForm').reset();
       btn.disabled = false;
       btn.innerText = "Reservering Bevestigen";
+      // Herlaad de kalender om de nieuwe bezetting/kleur te tonen
+      setTimeout(loadCalendar, 1000);
     })
     .catch(() => {
       msg.style.color = "red";
@@ -180,3 +203,14 @@
     });
   });
 </script>
+
+
+
+
+
+
+
+
+
+
+  
