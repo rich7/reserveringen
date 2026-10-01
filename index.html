@@ -1,64 +1,146 @@
 <style>
-  .booking-modal { font-family: sans-serif; max-width: 450px; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-  .form-group { margin-bottom: 15px; }
-  .form-group label { display: block; font-weight: bold; margin-bottom: 5px; }
+  .booking-container { font-family: sans-serif; max-width: 650px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin: 0 auto; }
+  
+  /* Kalender styling */
+  .cal-legend { display: flex; gap: 15px; margin-bottom: 12px; font-size: 13px; justify-content: center; }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 20px; text-align: center; }
+  .cal-day-head { font-weight: bold; font-size: 12px; padding: 4px; color: #555; }
+  .cal-day { padding: 10px 4px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; border: 2px solid transparent; }
+  .cal-day.disabled { cursor: not-allowed; opacity: 0.6; }
+  .cal-day.selected { border-color: #000; scale: 1.05; }
+
+  /* Formulier styling */
+  .form-group { margin-bottom: 12px; }
+  .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 14px; }
   .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
   .checkbox-group { display: flex; align-items: center; gap: 8px; }
-  .checkbox-group input { width: auto; }
-  .btn-submit { width: 100%; padding: 12px; background: #28a745; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 16px; }
-  .btn-submit:hover { background: #218838; }
-  .status-msg { margin-top: 15px; font-weight: bold; text-align: center; }
+  .btn-submit { width: 100%; padding: 12px; background: #28a745; color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
+  .btn-submit:disabled { background: #999; }
 </style>
 
-<div class="booking-modal">
-  <h3>Tafel Reserveren</h3>
+<div class="booking-container">
+  <h3>1. Kies een Datum</h3>
+  
+  <div class="cal-legend">
+    <div class="legend-item"><span class="dot" style="background:#4ade80;"></span> Vrij</div>
+    <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span> Bijna Vol</div>
+    <div class="legend-item"><span class="dot" style="background:#f87171;"></span> Vol</div>
+    <div class="legend-item"><span class="dot" style="background:#d1d5db;"></span> Gesloten</div>
+  </div>
+
+  <div id="calendarGrid" class="calendar-grid">
+    <div class="cal-day-head">Zo</div><div class="cal-day-head">Ma</div><div class="cal-day-head">Di</div>
+    <div class="cal-day-head">Wo</div><div class="cal-day-head">Do</div><div class="cal-day-head">Vr</div><div class="cal-day-head">Za</div>
+  </div>
+
+  <h3>2. Reserveringsgegevens</h3>
   <form id="restaurantBookingForm">
     <div class="form-group">
-      <label for="datum">Datum</label>
-      <input type="date" id="datum" name="datum" required>
+      <label>Gekozen Datum</label>
+      <input type="text" id="datum" name="datum" readonly placeholder="Klik op een datum hierboven" required>
     </div>
+
     <div class="form-group">
-      <label for="tijd">Tijdstip</label>
-      <input type="time" id="tijd" name="tijd" required>
+      <label for="tijd">Tijdstip (per kwartier)</label>
+      <select id="tijd" name="tijd" required>
+        <option value="">Selecteer een tijdstip</option>
+        <!-- Ingevuld via JavaScript in kwartieren -->
+      </select>
     </div>
+
     <div class="form-group">
       <label for="gasten">Aantal Personen</label>
       <input type="number" id="gasten" name="gasten" min="1" max="10" value="2" required>
     </div>
+
     <div class="form-group">
       <label for="naam">Naam</label>
       <input type="text" id="naam" name="naam" required>
     </div>
+
     <div class="form-group">
       <label for="telefoon">Telefoonnummer</label>
       <input type="tel" id="telefoon" name="telefoon" required>
     </div>
+
     <div class="form-group">
       <label for="email">E-mailadres</label>
       <input type="email" id="email" name="email" required>
     </div>
+
     <div class="form-group checkbox-group">
       <input type="checkbox" id="nieuwsbrief" name="nieuwsbrief">
-      <label for="nieuwsbrief" style="font-weight: normal; margin:0;">Ik ontvang graag de nieuwsbrief</label>
+      <label for="nieuwsbrief" style="font-weight:normal;">Ik ontvang graag de nieuwsbrief</label>
     </div>
+
     <button type="submit" class="btn-submit" id="submitBtn">Reservering Bevestigen</button>
   </form>
-  <div id="statusMessage" class="status-msg"></div>
+  <div id="statusMessage" style="margin-top:15px; font-weight:bold; text-align:center;"></div>
 </div>
 
 <script>
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyfqzHOmxW9xuZC0GZmYGHpypx8sSaalwT_SxCqZ1aYMgagMwH825Ez3yxmcevup8Z/exec";
+  const SCRIPT_URL = "JOUW_APPS_SCRIPT_WEB_APP_URL_HIER";
 
-  // Blokkeer maandagen in de datumkiezer
-  const datumInput = document.getElementById('datum');
-  datumInput.addEventListener('input', function(e) {
-    const day = new Date(this.value).getUTCDay();
-    if(day === 1){ // 1 = Maandag
-      alert('Wij zijn op maandag helaas gesloten. Kies a.u.b. een andere dag.');
-      this.value = '';
+  // 1. Genereer tijdstippen per kwartier (17:00 tot 22:00)
+  const tijdSelect = document.getElementById('tijd');
+  const startHour = 17;
+  const endHour = 22;
+
+  for (let h = startHour; h < endHour; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      let hh = h < 10 ? '0' + h : h;
+      let mm = m === 0 ? '00' : m;
+      let timeVal = `${hh}:${mm}`;
+      let opt = document.createElement('option');
+      opt.value = timeVal;
+      opt.innerText = timeVal;
+      tijdSelect.appendChild(opt);
     }
-  });
+  }
 
+  // 2. Haal Kalenderstatus op bij Apps Script & Bouw Grid
+  fetch(SCRIPT_URL)
+    .then(res => res.json())
+    .then(calData => renderCalendar(calData))
+    .catch(() => alert('Kon kalenderdata niet laden.'));
+
+  function renderCalendar(calData) {
+    const grid = document.getElementById('calendarGrid');
+    const today = new Date();
+    
+    // Vul lege cellen op voor juiste dag van de week
+    let firstDayOfWeek = new Date(today.getFullYear(), today.getMonth(), 1).getDay();
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      let emptyDiv = document.createElement('div');
+      grid.appendChild(emptyDiv);
+    }
+
+    Object.keys(calData).forEach(dateStr => {
+      const item = calData[dateStr];
+      const dayBox = document.createElement('div');
+      const dayNum = dateStr.split('-')[2];
+      
+      dayBox.className = 'cal-day';
+      dayBox.innerText = dayNum;
+      dayBox.style.backgroundColor = item.color;
+
+      if (item.status === 'VOL' || item.status === 'GESLOTEN') {
+        dayBox.classList.add('disabled');
+      } else {
+        dayBox.onclick = function() {
+          document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected'));
+          dayBox.classList.add('selected');
+          document.getElementById('datum').value = dateStr;
+        };
+      }
+      grid.appendChild(dayBox);
+    });
+  }
+
+  // 3. Verzenden van het formulier
   document.getElementById('restaurantBookingForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
@@ -66,7 +148,6 @@
 
     btn.disabled = true;
     btn.innerText = "Bezig met verwerken...";
-    msg.innerText = "";
 
     const payload = {
       datum: document.getElementById('datum').value,
@@ -86,12 +167,12 @@
     })
     .then(() => {
       msg.style.color = "green";
-      msg.innerText = "Bedankt! Je reservering is ontvangen. Bevestiging is verzonden per e-mail.";
+      msg.innerText = "Bedankt! Je reservering is succesvol geplaatst.";
       document.getElementById('restaurantBookingForm').reset();
       btn.disabled = false;
       btn.innerText = "Reservering Bevestigen";
     })
-    .catch(err => {
+    .catch(() => {
       msg.style.color = "red";
       msg.innerText = "Er ging iets mis. Probeer het opnieuw.";
       btn.disabled = false;
