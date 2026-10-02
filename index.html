@@ -9,26 +9,22 @@
     .booking-container { max-width: 420px; background: #fff; padding: 18px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin: 0 auto; }
     h2 { font-size: 18px; margin: 0 0 12px 0; text-align: center; color: #1e293b; }
     
-    /* Compacte Kalender Controls */
     .month-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: bold; font-size: 14px; }
     .month-nav button { background: #e2e8f0; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     .month-nav button:hover { background: #cbd5e1; }
     .month-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
 
-    /* Legend */
     .cal-legend { display: flex; gap: 10px; justify-content: center; font-size: 11px; margin-bottom: 10px; color: #64748b; }
     .legend-item { display: flex; align-items: center; gap: 3px; }
     .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
     
-    /* Compact Grid */
     .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 15px; }
     .cal-day-head { font-weight: 600; font-size: 11px; text-align: center; color: #94a3b8; padding-bottom: 2px; }
-    .cal-day { height: 32px; line-height: 32px; border-radius: 5px; font-size: 12px; font-weight: bold; text-align: center; cursor: pointer; border: 1.5px solid transparent; user-select: none; }
+    .cal-day { height: 32px; line-height: 32px; border-radius: 5px; font-size: 12px; font-weight: bold; text-align: center; cursor: pointer; border: 1.5px solid transparent; user-select: none; background-color: #f1f5f9; transition: all 0.2s; }
     .cal-day:hover:not(.disabled) { opacity: 0.85; transform: scale(1.04); }
     .cal-day.disabled { cursor: not-allowed; opacity: 0.35; }
     .cal-day.selected { border-color: #000 !important; font-size: 13px; box-shadow: 0 0 0 1px #000; }
 
-    /* Compact Formulier */
     .form-group { margin-bottom: 10px; }
     .form-group label { display: block; font-weight: 600; margin-bottom: 3px; font-size: 12px; color: #334155; }
     .form-group input, .form-group select { width: 100%; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; font-size: 13px; }
@@ -36,7 +32,6 @@
     .btn-submit { width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 5px; }
     .btn-submit:hover { background: #059669; }
     .btn-submit:disabled { background: #cbd5e1; cursor: not-allowed; }
-    #loadingMsg { text-align: center; grid-column: span 7; font-size: 12px; color: #64748b; padding: 10px 0; }
   </style>
 </head>
 <body>
@@ -60,7 +55,6 @@
   <div id="calendarGrid" class="calendar-grid">
     <div class="cal-day-head">Zo</div><div class="cal-day-head">Ma</div><div class="cal-day-head">Di</div>
     <div class="cal-day-head">Wo</div><div class="cal-day-head">Do</div><div class="cal-day-head">Vr</div><div class="cal-day-head">Za</div>
-    <div id="loadingMsg">Kalender wordt geladen...</div>
   </div>
 
   <form id="restaurantBookingForm">
@@ -107,18 +101,18 @@
 </div>
 
 <script>
-  // VERVANG DIT DOOR JOUW APPS SCRIPT WEB APP URL!
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyfqzHOmxW9xuZC0GZmYGHpypx8sSaalwT_SxCqZ1aYMgagMwH825Ez3yxmcevup8Z/exec";
+  // VERVANG ONDERSTAANDE URL DOOR JOUW GEPUBLICEERDE APPS SCRIPT WEB APP URL
+  const SCRIPT_URL = "https://script.google.com/macros/s/JOUW_GEPUBLICEERDE_SCRIPT_ID/exec";
 
   let fullCalData = {};
   let currentViewDate = new Date();
-  currentViewDate.setDate(1); // Eerste dag van de maand
+  currentViewDate.setDate(1);
   let minMonth = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth(), 1);
   let maxMonth = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth() + 2, 1);
 
   const monthNames = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
 
-  // 1. Kwartieren opties vullen
+  // 1. Tijdstippen in kwartieren vullen
   const tijdSelect = document.getElementById('tijd');
   for (let h = 17; h < 22; h++) {
     for (let m = 0; m < 60; m += 15) {
@@ -131,22 +125,8 @@
     }
   }
 
-  // 2. Kalender Data Ophalen (JSONP)
-  function loadCalendar() {
-    const script = document.createElement('script');
-    script.src = SCRIPT_URL + "?callback=renderCalendarData&t=" + new Date().getTime();
-    document.body.appendChild(script);
-  }
-
-  window.renderCalendarData = function(calData) {
-    fullCalData = calData;
-    const loading = document.getElementById('loadingMsg');
-    if (loading) loading.remove();
-    updateMonthView();
-  };
-
-  // 3. Maandweergave updaten
-  function updateMonthView() {
+  // 2. STAP A: Bouw DIRECT de kalender op het scherm (vliegensvlug)
+  function renderLocalGrid() {
     const grid = document.getElementById('calendarGrid');
     const oldDays = grid.querySelectorAll('.cal-day, .cal-empty');
     oldDays.forEach(el => el.remove());
@@ -155,12 +135,9 @@
     const month = currentViewDate.getMonth();
 
     document.getElementById('monthTitle').innerText = `${monthNames[month]} ${year}`;
-
-    // Navigatie knoppen aan/uit zetten
     document.getElementById('prevBtn').disabled = (currentViewDate <= minMonth);
     document.getElementById('nextBtn').disabled = (currentViewDate >= maxMonth);
 
-    // Bepaal op welke dag van de week de 1e valt
     let firstDayOfWeek = new Date(year, month, 1).getDay();
     for (let i = 0; i < firstDayOfWeek; i++) {
       let emptyDiv = document.createElement('div');
@@ -168,77 +145,108 @@
       grid.appendChild(emptyDiv);
     }
 
-    // Aantal dagen in de huidige maand
     let daysInMonth = new Date(year, month + 1, 0).getDate();
 
     for (let day = 1; day <= daysInMonth; day++) {
-      let mStr = (month + 1) < 10 ? '0' + (month + 1) : (month + 1);
-      let dStr = day < 10 ? '0' + day : day;
+      let mStr = (month + 1).toString().padStart(2, '0');
+      let dStr = day.toString().padStart(2, '0');
       let dateKey = `${year}-${mStr}-${dStr}`;
 
       const dayBox = document.createElement('div');
       dayBox.className = 'cal-day';
+      dayBox.id = `day-${dateKey}`;
       dayBox.innerText = day;
 
+      // Als de data van Sheets al binnen is, kleur direct in
       if (fullCalData[dateKey]) {
-        const item = fullCalData[dateKey];
-        dayBox.style.backgroundColor = item.color;
-
-        if (item.status === 'VOL' || item.status === 'GESLOTEN') {
-          dayBox.classList.add('disabled');
-        } else {
-          dayBox.onclick = function() {
-            document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected'));
-            dayBox.classList.add('selected');
-            document.getElementById('datum').value = dateKey;
-          };
-        }
+        applyDayData(dayBox, fullCalData[dateKey], dateKey);
       } else {
-        // Datum valt buiten de 90 dagen of verleden
-        dayBox.classList.add('disabled');
-        dayBox.style.backgroundColor = '#f1f5f9';
+        // Standaard neutrale/vrije styling totdat Sheets geladen is
+        dayBox.style.backgroundColor = '#e2e8f0'; 
+        dayBox.onclick = function() {
+          selectDate(dayBox, dateKey);
+        };
       }
 
       grid.appendChild(dayBox);
     }
   }
 
-  function changeMonth(delta) {
-    currentViewDate.setMonth(currentViewDate.getMonth() + delta);
-    updateMonthView();
+  function applyDayData(dayBox, item, dateKey) {
+    dayBox.style.backgroundColor = item.color;
+    if (item.status === 'VOL' || item.status === 'GESLOTEN') {
+      dayBox.classList.add('disabled');
+      dayBox.onclick = null;
+    } else {
+      dayBox.classList.remove('disabled');
+      dayBox.onclick = function() {
+        selectDate(dayBox, dateKey);
+      };
+    }
   }
 
-  loadCalendar();
+  function selectDate(dayBox, dateKey) {
+    document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected'));
+    dayBox.classList.add('selected');
+    document.getElementById('datum').value = dateKey;
+  }
 
-  // 4. Formulier verzenden
+  function changeMonth(delta) {
+    currentViewDate.setMonth(currentViewDate.getMonth() + delta);
+    renderLocalGrid();
+  }
+
+  // 3. STAP B: Haal kalenderkleuren & bezetting op van Google Sheets op de achtergrond
+  function fetchCalendarData() {
+    const script = document.createElement('script');
+    script.src = SCRIPT_URL + "?callback=onCalendarDataLoaded&t=" + new Date().getTime();
+    document.body.appendChild(script);
+  }
+
+  window.onCalendarDataLoaded = function(calData) {
+    fullCalData = calData;
+    // Update de al zichtbare dagen met de accurate kleuren uit Google Sheets
+    Object.keys(fullCalData).forEach(dateKey => {
+      const dayBox = document.getElementById(`day-${dateKey}`);
+      if (dayBox) {
+        applyDayData(dayBox, fullCalData[dateKey], dateKey);
+      }
+    });
+  };
+
+  // Direct uitvoeren
+  renderLocalGrid();
+  fetchCalendarData();
+
+  // 4. Formulier verzenden naar Google Sheets (100% werkend via URL parameters)
   document.getElementById('restaurantBookingForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
     const msg = document.getElementById('statusMessage');
 
-    if (!document.getElementById('datum').value) {
-      alert('Selecteer a.u.b. eerst een gekleurde datum in de kalender.');
+    const datumVal = document.getElementById('datum').value;
+    if (!datumVal) {
+      alert('Selecteer a.u.b. eerst een datum in de kalender.');
       return;
     }
 
     btn.disabled = true;
     btn.innerText = "Verwerken...";
 
-    const payload = {
-      datum: document.getElementById('datum').value,
-      tijd: document.getElementById('tijd').value,
-      gasten: document.getElementById('gasten').value,
-      naam: document.getElementById('naam').value,
-      telefoon: document.getElementById('telefoon').value,
-      email: document.getElementById('email').value,
-      nieuwsbrief: document.getElementById('nieuwsbrief').checked
-    };
+    const formData = new URLSearchParams();
+    formData.append('datum', datumVal);
+    formData.append('tijd', document.getElementById('tijd').value);
+    formData.append('gasten', document.getElementById('gasten').value);
+    formData.append('naam', document.getElementById('naam').value);
+    formData.append('telefoon', document.getElementById('telefoon').value);
+    formData.append('email', document.getElementById('email').value);
+    formData.append('nieuwsbrief', document.getElementById('nieuwsbrief').checked);
 
     fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString()
     })
     .then(() => {
       msg.style.color = "#10b981";
@@ -246,7 +254,7 @@
       document.getElementById('restaurantBookingForm').reset();
       btn.disabled = false;
       btn.innerText = "Reservering Bevestigen";
-      setTimeout(loadCalendar, 1500);
+      setTimeout(fetchCalendarData, 1000); // Herlaad direct de nieuwe bezetting
     })
     .catch(() => {
       msg.style.color = "#ef4444";
