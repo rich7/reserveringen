@@ -62,7 +62,6 @@
   .day:hover:not([aria-disabled="true"]) { transform: scale(1.06); background: var(--line); }
   .day[aria-disabled="true"] { cursor: not-allowed; background: transparent; color: #b6c0cd; }
   .day.s-vol .num { text-decoration: line-through; }
-  .day.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
   .day.selected { background: var(--accent); color: var(--on-accent); }
   .day.selected .dot { background: var(--on-accent) !important; }
   .day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -174,9 +173,9 @@
         <div class="head" aria-hidden="true">Zo</div>
       </div>
       <div class="legenda" aria-hidden="true">
-        <span><i style="background:#4ade80"></i>Vrij</span>
-        <span><i style="background:#fbbf24"></i>Beperkt</span>
-        <span><i style="background:#f87171"></i>Vol</span>
+        <span><i style="background:#22c55e"></i>Vrij</span>
+        <span><i style="background:#f59e0b"></i>Beperkt</span>
+        <span><i style="background:#dc2626"></i>Vol</span>
         <span><i style="background:#d1d5db"></i>Gesloten</span>
       </div>
       <div class="alert" id="laadFout" role="alert" hidden>
@@ -262,7 +261,6 @@
 (function () {
   "use strict";
 
-  // ===== HIER PLAK JE JE WEB-APP-URL (eindigt op /exec) =====
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQ4uzJUGX7DboQKUantcR-K7-ywcz0Di_o3SDLQL5DnekVbE3JIK4qR14hEUKzBajpBg/exec";
 
   const CACHE_KEY = "reservering_cache_v1";
@@ -415,7 +413,7 @@
 
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "day" + (status ? " s-" + status.toLowerCase() : "") + (key === vandaagKey ? " today" : "") + (skeleton ? " skeleton" : "");
+      b.className = "day" + (status ? " s-" + status.toLowerCase() : "") + (skeleton ? " skeleton" : "");
       b.dataset.key = key;
       b.setAttribute("aria-disabled", beschikbaar ? "false" : "true");
       b.setAttribute("aria-label", mooieDatum(key) + ", " + (status ? STATUS_TEKST[status] || "niet beschikbaar" : (skeleton ? "laden" : "niet beschikbaar")));
@@ -526,7 +524,7 @@
   $("meer").addEventListener("click", function () { if (state.personen < state.config.maxPersonen) { state.personen++; updatePersonen(); } });
 
   // ===== STAPPEN =====
-  function maakSamenvatting(doel, bookingId) {
+  function maakSamenvatting(doel) {
     doel.textContent = "";
     const rijen = [
       ["Datum", mooieDatum(state.datum)],
@@ -659,14 +657,6 @@
 
   // ===== START =====
   function start() {
-    if (SCRIPT_URL.indexOf("PLAK_HIER") !== -1) {
-      state.laden = false;
-      renderKalender();
-      const m = $("melding1");
-      m.textContent = "De web-app-URL is nog niet ingevuld bovenaan in het script (SCRIPT_URL).";
-      m.hidden = false;
-      return;
-    }
     const c = laadCache();
     if (c) { verwerk(c); state.laden = false; }
     pasConfigToe();
