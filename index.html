@@ -1,269 +1,680 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tafel Reserveren</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; margin: 0; padding: 15px; }
-    .booking-container { max-width: 420px; background: #fff; padding: 18px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin: 0 auto; }
-    h2 { font-size: 18px; margin: 0 0 12px 0; text-align: center; color: #1e293b; }
-    
-    .month-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: bold; font-size: 14px; }
-    .month-nav button { background: #e2e8f0; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-    .month-nav button:hover { background: #cbd5e1; }
-    .month-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tafel reserveren</title>
+<style>
+  :root {
+    --accent: #10b981;
+    --on-accent: #ffffff;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --soft: #f8fafc;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.4;
+  }
+  .card {
+    max-width: 460px; margin: 0 auto; background: var(--card);
+    border-radius: var(--radius); box-shadow: 0 10px 30px rgba(15, 23, 42, .08); overflow: hidden;
+  }
+  header { padding: 24px 22px 14px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+  .intro { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+  .intro:empty { display: none; }
+  h2 { margin: 0 0 14px; font-size: 17px; outline: none; }
 
-    .cal-legend { display: flex; gap: 10px; justify-content: center; font-size: 11px; margin-bottom: 10px; color: #64748b; }
-    .legend-item { display: flex; align-items: center; gap: 3px; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-    
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 15px; }
-    .cal-day-head { font-weight: 600; font-size: 11px; text-align: center; color: #94a3b8; padding-bottom: 2px; }
-    .cal-day { height: 32px; line-height: 32px; border-radius: 5px; font-size: 12px; font-weight: bold; text-align: center; cursor: pointer; border: 1.5px solid transparent; user-select: none; background-color: #f1f5f9; transition: all 0.2s; }
-    .cal-day:hover:not(.disabled) { opacity: 0.85; transform: scale(1.04); }
-    .cal-day.disabled { cursor: not-allowed; opacity: 0.35; }
-    .cal-day.selected { border-color: #000 !important; font-size: 13px; box-shadow: 0 0 0 1px #000; }
+  .steps { display: flex; gap: 8px; list-style: none; margin: 0; padding: 0 22px 16px; }
+  .steps li { flex: 1; }
+  .steps .bar { display: block; height: 4px; border-radius: 4px; background: var(--line); transition: background .2s; }
+  .steps .lbl { display: block; margin-top: 5px; font-size: 11px; color: var(--muted); }
+  .steps li.active .bar, .steps li.done .bar { background: var(--accent); }
+  .steps li.active .lbl { color: var(--text); font-weight: 600; }
 
-    .form-group { margin-bottom: 10px; }
-    .form-group label { display: block; font-weight: 600; margin-bottom: 3px; font-size: 12px; color: #334155; }
-    .form-group input, .form-group select { width: 100%; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 5px; box-sizing: border-box; font-size: 13px; }
-    .checkbox-group { display: flex; align-items: center; gap: 6px; }
-    .btn-submit { width: 100%; padding: 10px; background: #10b981; color: #fff; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 5px; }
-    .btn-submit:hover { background: #059669; }
-    .btn-submit:disabled { background: #cbd5e1; cursor: not-allowed; }
-  </style>
+  main { padding: 0 22px 24px; }
+
+  .maandnav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .maandnav strong { text-transform: capitalize; font-size: 15px; }
+  .icon-btn {
+    width: 38px; height: 38px; border: 0; border-radius: 50%; background: var(--soft);
+    font-size: 20px; line-height: 1; cursor: pointer; color: var(--text);
+  }
+  .icon-btn:hover:not(:disabled) { background: var(--line); }
+  .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .head { text-align: center; font-size: 11px; font-weight: 600; color: var(--muted); padding-bottom: 2px; }
+  .day {
+    position: relative; height: 46px; border: 0; border-radius: 12px; background: var(--soft);
+    font: inherit; font-weight: 600; font-size: 14px; color: var(--text); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    transition: transform .12s, background .12s;
+  }
+  .day .dot { width: 6px; height: 6px; border-radius: 50%; background: transparent; }
+  .day:hover:not([aria-disabled="true"]) { transform: scale(1.06); background: var(--line); }
+  .day[aria-disabled="true"] { cursor: not-allowed; background: transparent; color: #b6c0cd; }
+  .day.s-vol .num { text-decoration: line-through; }
+  .day.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .day.selected { background: var(--accent); color: var(--on-accent); }
+  .day.selected .dot { background: var(--on-accent) !important; }
+  .day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .day.skeleton {
+    color: transparent; cursor: default;
+    background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9); background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  .legenda { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; margin: 14px 0 6px; font-size: 12px; color: var(--muted); }
+  .legenda span { display: inline-flex; align-items: center; gap: 5px; }
+  .legenda i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  .picked { margin: 12px 0; font-size: 14px; font-weight: 600; min-height: 20px; }
+  .picked.klein { color: var(--muted); font-weight: 500; margin-top: 0; }
+
+  fieldset { border: 0; padding: 0; margin: 0 0 18px; }
+  legend, .lbl-tekst { font-size: 13px; font-weight: 600; color: #334155; padding: 0; margin-bottom: 8px; display: block; }
+  .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .chip { position: relative; }
+  .chip input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .chip span {
+    display: block; text-align: center; padding: 10px 0; border-radius: 10px; background: var(--soft);
+    border: 1.5px solid transparent; font-size: 14px; font-weight: 600; transition: all .12s;
+  }
+  .chip:hover span { background: var(--line); }
+  .chip input:checked + span { background: var(--accent); color: var(--on-accent); }
+  .chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .stepper { display: flex; align-items: center; justify-content: center; gap: 22px; margin: 4px 0; }
+  .stepper button {
+    width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--soft);
+    font-size: 24px; cursor: pointer; color: var(--text);
+  }
+  .stepper button:hover:not(:disabled) { background: var(--line); }
+  .stepper button:disabled { opacity: .3; cursor: not-allowed; }
+  .stepper output { font-size: 30px; font-weight: 700; min-width: 40px; text-align: center; }
+  .hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+
+  .veld { margin-bottom: 14px; }
+  .veld label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px; }
+  .veld input[type="text"], .veld input[type="tel"], .veld input[type="email"] {
+    width: 100%; padding: 12px 13px; border: 1.5px solid var(--line); border-radius: 10px;
+    font: inherit; font-size: 15px; background: #fff; color: var(--text);
+  }
+  .veld input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #334155; margin: 4px 0 16px; }
+  .check input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--accent); }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+  .samenvatting { background: var(--soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; font-size: 14px; }
+  .samenvatting div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+  .samenvatting span:first-child { color: var(--muted); }
+  .samenvatting span:last-child { font-weight: 600; text-align: right; }
+
+  .btn {
+    width: 100%; padding: 14px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent);
+    font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; transition: filter .12s;
+  }
+  .btn:hover:not(:disabled) { filter: brightness(.95); }
+  .btn:disabled { background: var(--line); color: #94a3b8; cursor: not-allowed; }
+  .btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  .btn.ghost { background: var(--soft); color: var(--text); }
+  .acties { display: flex; gap: 10px; }
+  .acties .ghost { flex: 0 0 34%; }
+
+  .alert { padding: 11px 13px; border-radius: 10px; font-size: 13px; margin: 10px 0; background: #fef2f2; color: #b91c1c; }
+  .alert.info { background: #fffbeb; color: #92400e; }
+  .alert button { background: none; border: 0; padding: 0; margin-left: 6px; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; cursor: pointer; }
+
+  .succes { text-align: center; padding-top: 8px; }
+  .succes svg { width: 64px; height: 64px; }
+  .succes h2 { font-size: 20px; margin: 10px 0 6px; }
+  .nummer { display: inline-block; margin: 6px 0 16px; padding: 6px 12px; border-radius: 8px; background: var(--soft); font-weight: 700; letter-spacing: .03em; }
+  .succes .samenvatting { text-align: left; }
+  .succes p { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
 </head>
 <body>
 
-<div class="booking-container">
-  <h2>Tafel Reserveren</h2>
-  
-  <div class="month-nav">
-    <button id="prevBtn" onclick="changeMonth(-1)">&lt;</button>
-    <span id="monthTitle">Laden...</span>
-    <button id="nextBtn" onclick="changeMonth(1)">&gt;</button>
-  </div>
+<div class="card" id="kaart">
+  <header>
+    <h1 id="titel">Tafel reserveren</h1>
+    <p class="intro" id="intro"></p>
+  </header>
 
-  <div class="cal-legend">
-    <div class="legend-item"><span class="dot" style="background:#4ade80;"></span> Vrij</div>
-    <div class="legend-item"><span class="dot" style="background:#fbbf24;"></span> Beperkt</div>
-    <div class="legend-item"><span class="dot" style="background:#f87171;"></span> Vol</div>
-    <div class="legend-item"><span class="dot" style="background:#d1d5db;"></span> Gesloten</div>
-  </div>
+  <ol class="steps" id="stappen" aria-label="Voortgang">
+    <li data-stap="1" class="active"><span class="bar"></span><span class="lbl">Datum</span></li>
+    <li data-stap="2"><span class="bar"></span><span class="lbl">Tijd</span></li>
+    <li data-stap="3"><span class="bar"></span><span class="lbl">Gegevens</span></li>
+  </ol>
 
-  <div id="calendarGrid" class="calendar-grid">
-    <div class="cal-day-head">Zo</div><div class="cal-day-head">Ma</div><div class="cal-day-head">Di</div>
-    <div class="cal-day-head">Wo</div><div class="cal-day-head">Do</div><div class="cal-day-head">Vr</div><div class="cal-day-head">Za</div>
-  </div>
+  <main>
+    <!-- STAP 1: DATUM -->
+    <section class="panel" id="stap1">
+      <h2 id="h-stap1" tabindex="-1">Kies een datum</h2>
+      <div class="maandnav">
+        <button type="button" class="icon-btn" id="vorige" aria-label="Vorige maand">&#8249;</button>
+        <strong id="maandTitel" aria-live="polite"></strong>
+        <button type="button" class="icon-btn" id="volgende" aria-label="Volgende maand">&#8250;</button>
+      </div>
+      <div class="grid" id="kalender" role="group" aria-label="Kalender">
+        <div class="head" aria-hidden="true">Ma</div><div class="head" aria-hidden="true">Di</div>
+        <div class="head" aria-hidden="true">Wo</div><div class="head" aria-hidden="true">Do</div>
+        <div class="head" aria-hidden="true">Vr</div><div class="head" aria-hidden="true">Za</div>
+        <div class="head" aria-hidden="true">Zo</div>
+      </div>
+      <div class="legenda" aria-hidden="true">
+        <span><i style="background:#4ade80"></i>Vrij</span>
+        <span><i style="background:#fbbf24"></i>Beperkt</span>
+        <span><i style="background:#f87171"></i>Vol</span>
+        <span><i style="background:#d1d5db"></i>Gesloten</span>
+      </div>
+      <div class="alert" id="laadFout" role="alert" hidden>
+        We konden de beschikbaarheid niet laden.<button type="button" id="opnieuw">Opnieuw proberen</button>
+      </div>
+      <div class="alert info" id="melding1" role="alert" hidden></div>
+      <p class="picked" id="gekozenDatum" aria-live="polite"></p>
+      <button type="button" class="btn" id="naar2" disabled>Volgende</button>
+    </section>
 
-  <form id="restaurantBookingForm">
-    <div class="form-group">
-      <label>Gekozen Datum</label>
-      <input type="text" id="datum" name="datum" readonly placeholder="Klik op een datum in de kalender" required>
-    </div>
+    <!-- STAP 2: TIJD EN PERSONEN -->
+    <section class="panel" id="stap2" hidden>
+      <h2 id="h-stap2" tabindex="-1">Tijd en personen</h2>
+      <p class="picked klein" id="datum2"></p>
+      <fieldset>
+        <legend>Tijdstip</legend>
+        <div class="chips" id="tijden"></div>
+      </fieldset>
+      <div class="veld">
+        <span class="lbl-tekst">Aantal personen</span>
+        <div class="stepper">
+          <button type="button" id="minder" aria-label="Eén persoon minder">&minus;</button>
+          <output id="aantal" aria-live="polite">2</output>
+          <button type="button" id="meer" aria-label="Eén persoon meer">+</button>
+        </div>
+        <p class="hint" id="groepHint" hidden></p>
+      </div>
+      <div class="acties">
+        <button type="button" class="btn ghost" id="terug1">Terug</button>
+        <button type="button" class="btn" id="naar3" disabled>Volgende</button>
+      </div>
+    </section>
 
-    <div class="form-group">
-      <label for="tijd">Tijdstip (kwartieren)</label>
-      <select id="tijd" name="tijd" required>
-        <option value="">Selecteer tijdstip</option>
-      </select>
-    </div>
+    <!-- STAP 3: GEGEVENS -->
+    <section class="panel" id="stap3" hidden>
+      <h2 id="h-stap3" tabindex="-1">Jouw gegevens</h2>
+      <div class="samenvatting" id="samenvatting3"></div>
+      <form id="formulier" novalidate>
+        <div class="veld">
+          <label for="naam">Naam</label>
+          <input type="text" id="naam" name="naam" autocomplete="name" maxlength="80" required>
+        </div>
+        <div class="veld">
+          <label for="telefoon">Telefoonnummer</label>
+          <input type="tel" id="telefoon" name="telefoon" autocomplete="tel" inputmode="tel" maxlength="25" required>
+        </div>
+        <div class="veld">
+          <label for="email">E-mailadres</label>
+          <input type="email" id="email" name="email" autocomplete="email" maxlength="120" required>
+        </div>
+        <label class="check" id="nieuwsbriefRij" hidden>
+          <input type="checkbox" id="nieuwsbrief" name="nieuwsbrief">
+          <span>Houd mij op de hoogte met de nieuwsbrief</span>
+        </label>
+        <div class="hp" aria-hidden="true">
+          <label>Website <input type="text" name="website" id="website" tabindex="-1" autocomplete="off"></label>
+        </div>
+        <div class="alert" id="fout3" role="alert" hidden></div>
+        <div class="acties">
+          <button type="button" class="btn ghost" id="terug2">Terug</button>
+          <button type="submit" class="btn" id="verstuur">Reserveren</button>
+        </div>
+      </form>
+    </section>
 
-    <div class="form-group">
-      <label for="gasten">Aantal Personen</label>
-      <input type="number" id="gasten" name="gasten" min="1" max="10" value="2" required>
-    </div>
-
-    <div class="form-group">
-      <label for="naam">Naam</label>
-      <input type="text" id="naam" name="naam" required>
-    </div>
-
-    <div class="form-group">
-      <label for="telefoon">Telefoonnummer</label>
-      <input type="tel" id="telefoon" name="telefoon" required>
-    </div>
-
-    <div class="form-group">
-      <label for="email">E-mailadres</label>
-      <input type="email" id="email" name="email" required>
-    </div>
-
-    <div class="form-group checkbox-group">
-      <input type="checkbox" id="nieuwsbrief" name="nieuwsbrief" style="width:auto;">
-      <label for="nieuwsbrief" style="font-weight:normal; font-size:12px; margin:0;">Inschrijven voor nieuwsbrief</label>
-    </div>
-
-    <button type="submit" class="btn-submit" id="submitBtn">Reservering Bevestigen</button>
-  </form>
-  <div id="statusMessage" style="margin-top:10px; font-weight:bold; font-size:12px; text-align:center;"></div>
+    <!-- BEVESTIGING -->
+    <section class="panel succes" id="succes" hidden>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="30" fill="var(--accent)" opacity=".15"/>
+        <circle cx="32" cy="32" r="22" fill="var(--accent)"/>
+        <path d="M22 33l7 7 13-15" fill="none" stroke="var(--on-accent)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2 id="h-succes" tabindex="-1">Reservering bevestigd</h2>
+      <div class="nummer" id="bevestigNummer"></div>
+      <div class="samenvatting" id="samenvattingSucces"></div>
+      <p>Je ontvangt een bevestiging per e-mail.</p>
+      <button type="button" class="btn" id="nieuw">Nieuwe reservering</button>
+    </section>
+  </main>
 </div>
 
 <script>
-  // VERVANG ONDERSTAANDE URL DOOR JOUW GEPUBLICEERDE APPS SCRIPT WEB APP URL
-   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxyfqzHOmxW9xuZC0GZmYGHpypx8sSaalwT_SxCqZ1aYMgagMwH825Ez3yxmcevup8Z/exec";
+(function () {
+  "use strict";
 
-  let fullCalData = {};
-  let currentViewDate = new Date();
-  currentViewDate.setDate(1);
-  let minMonth = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth(), 1);
-  let maxMonth = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth() + 2, 1);
+  // ===== HIER PLAK JE JE WEB-APP-URL (eindigt op /exec) =====
+  const SCRIPT_URL = "PLAK_HIER_JE_WEB_APP_URL";
 
-  const monthNames = ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"];
+  const CACHE_KEY = "reservering_cache_v1";
+  const CACHE_MAX_UREN = 12;
 
-  // 1. Tijdstippen in kwartieren vullen
-  const tijdSelect = document.getElementById('tijd');
-  for (let h = 17; h < 22; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      let hh = h < 10 ? '0' + h : h;
-      let mm = m === 0 ? '00' : m;
-      let opt = document.createElement('option');
-      opt.value = `${hh}:${mm}`;
-      opt.innerText = `${hh}:${mm}`;
-      tijdSelect.appendChild(opt);
-    }
-  }
+  const STATUS_TEKST = { VRIJ: "beschikbaar", BEPERKT: "beperkt beschikbaar", VOL: "vol", GESLOTEN: "gesloten" };
 
-  // 2. STAP A: Bouw DIRECT de kalender op het scherm (vliegensvlug)
-  function renderLocalGrid() {
-    const grid = document.getElementById('calendarGrid');
-    const oldDays = grid.querySelectorAll('.cal-day, .cal-empty');
-    oldDays.forEach(el => el.remove());
-
-    const year = currentViewDate.getFullYear();
-    const month = currentViewDate.getMonth();
-
-    document.getElementById('monthTitle').innerText = `${monthNames[month]} ${year}`;
-    document.getElementById('prevBtn').disabled = (currentViewDate <= minMonth);
-    document.getElementById('nextBtn').disabled = (currentViewDate >= maxMonth);
-
-    let firstDayOfWeek = new Date(year, month, 1).getDay();
-    for (let i = 0; i < firstDayOfWeek; i++) {
-      let emptyDiv = document.createElement('div');
-      emptyDiv.className = 'cal-empty';
-      grid.appendChild(emptyDiv);
-    }
-
-    let daysInMonth = new Date(year, month + 1, 0).getDate();
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      let mStr = (month + 1).toString().padStart(2, '0');
-      let dStr = day.toString().padStart(2, '0');
-      let dateKey = `${year}-${mStr}-${dStr}`;
-
-      const dayBox = document.createElement('div');
-      dayBox.className = 'cal-day';
-      dayBox.id = `day-${dateKey}`;
-      dayBox.innerText = day;
-
-      // Als de data van Sheets al binnen is, kleur direct in
-      if (fullCalData[dateKey]) {
-        applyDayData(dayBox, fullCalData[dateKey], dateKey);
-      } else {
-        // Standaard neutrale/vrije styling totdat Sheets geladen is
-        dayBox.style.backgroundColor = '#e2e8f0'; 
-        dayBox.onclick = function() {
-          selectDate(dayBox, dateKey);
-        };
-      }
-
-      grid.appendChild(dayBox);
-    }
-  }
-
-  function applyDayData(dayBox, item, dateKey) {
-    dayBox.style.backgroundColor = item.color;
-    if (item.status === 'VOL' || item.status === 'GESLOTEN') {
-      dayBox.classList.add('disabled');
-      dayBox.onclick = null;
-    } else {
-      dayBox.classList.remove('disabled');
-      dayBox.onclick = function() {
-        selectDate(dayBox, dateKey);
-      };
-    }
-  }
-
-  function selectDate(dayBox, dateKey) {
-    document.querySelectorAll('.cal-day').forEach(el => el.classList.remove('selected'));
-    dayBox.classList.add('selected');
-    document.getElementById('datum').value = dateKey;
-  }
-
-  function changeMonth(delta) {
-    currentViewDate.setMonth(currentViewDate.getMonth() + delta);
-    renderLocalGrid();
-  }
-
-  // 3. STAP B: Haal kalenderkleuren & bezetting op van Google Sheets op de achtergrond
-  function fetchCalendarData() {
-    const script = document.createElement('script');
-    script.src = SCRIPT_URL + "?callback=onCalendarDataLoaded&t=" + new Date().getTime();
-    document.body.appendChild(script);
-  }
-
-  window.onCalendarDataLoaded = function(calData) {
-    fullCalData = calData;
-    // Update de al zichtbare dagen met de accurate kleuren uit Google Sheets
-    Object.keys(fullCalData).forEach(dateKey => {
-      const dayBox = document.getElementById(`day-${dateKey}`);
-      if (dayBox) {
-        applyDayData(dayBox, fullCalData[dateKey], dateKey);
-      }
-    });
+  const state = {
+    config: { naam: "Tafel reserveren", intro: "", accent: "#10b981", telefoon: "", tijden: [], maxPersonen: 10, nieuwsbrief: false },
+    kalender: null,
+    laden: true,
+    fout: false,
+    datum: null,
+    tijd: null,
+    personen: 2,
+    stap: 1,
+    versturen: false
   };
+  const nu = new Date();
+  const weergave = { j: nu.getFullYear(), m: nu.getMonth() };
 
-  // Direct uitvoeren
-  renderLocalGrid();
-  fetchCalendarData();
+  const $ = function (id) { return document.getElementById(id); };
+  const pad = function (n) { return String(n).padStart(2, "0"); };
+  function keyVan(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function datumVan(key) { const p = key.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function vandaag() { return keyVan(new Date()); }
+  function mooieDatum(key) {
+    return datumVan(key).toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
+  }
 
-  // 4. Formulier verzenden naar Google Sheets (100% werkend via URL parameters)
-  document.getElementById('restaurantBookingForm').addEventListener('submit', function(e) {
+  // ===== CACHE (localStorage) =====
+  function laadCache() {
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY));
+      if (c && c.data && c.data.config && c.data.kalender && (Date.now() - c.t) < CACHE_MAX_UREN * 3600000) return c.data;
+    } catch (e) {}
+    return null;
+  }
+  function bewaarCache(data) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), data: data })); } catch (e) {}
+  }
+  function wisCache() {
+    try { localStorage.removeItem(CACHE_KEY); } catch (e) {}
+  }
+
+  // ===== DATA OPHALEN (JSONP, met timeout) =====
+  function haalDataOp() {
+    return new Promise(function (resolve, reject) {
+      const cb = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
+      const s = document.createElement("script");
+      let klaar = false;
+      const timer = setTimeout(function () { opruimen(); reject(new Error("timeout")); }, 15000);
+      function opruimen() {
+        klaar = true;
+        clearTimeout(timer);
+        window[cb] = function () {};
+        s.remove();
+      }
+      window[cb] = function (d) { if (klaar) return; opruimen(); resolve(d); };
+      s.onerror = function () { if (klaar) return; opruimen(); reject(new Error("netwerk")); };
+      s.src = SCRIPT_URL + (SCRIPT_URL.indexOf("?") === -1 ? "?" : "&") + "callback=" + cb + "&t=" + Date.now();
+      document.head.appendChild(s);
+    });
+  }
+
+  async function laden(achtergrond) {
+    state.fout = false;
+    if (!achtergrond) { state.laden = true; renderKalender(); }
+    try {
+      const d = await haalDataOp();
+      if (!d || !d.config || !d.kalender) throw new Error("ongeldig");
+      verwerk(d);
+      bewaarCache(d);
+    } catch (e) {
+      if (!state.kalender) state.fout = true;
+    }
+    state.laden = false;
+    renderKalender();
+  }
+
+  function verwerk(d) {
+    state.config = Object.assign({}, state.config, d.config);
+    state.kalender = d.kalender;
+    if (state.datum) {
+      const info = state.kalender[state.datum];
+      if (!info || (info.status !== "VRIJ" && info.status !== "BEPERKT")) {
+        state.datum = null;
+        $("gekozenDatum").textContent = "";
+        $("naar2").disabled = true;
+      }
+    }
+    pasConfigToe();
+  }
+
+  // ===== CONFIG TOEPASSEN =====
+  function zetAccent(hex) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex)) hex = "#10b981";
+    const r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    document.documentElement.style.setProperty("--accent", hex);
+    document.documentElement.style.setProperty("--on-accent", lum > 0.62 ? "#0f172a" : "#ffffff");
+  }
+
+  let laatsteTijden = "";
+  function pasConfigToe() {
+    const c = state.config;
+    zetAccent(c.accent);
+    $("titel").textContent = c.naam || "Tafel reserveren";
+    document.title = c.naam || "Tafel reserveren";
+    $("intro").textContent = c.intro || "";
+    $("nieuwsbriefRij").hidden = !c.nieuwsbrief;
+    if (state.personen > c.maxPersonen) state.personen = c.maxPersonen;
+    updatePersonen();
+    const sleutel = JSON.stringify(c.tijden);
+    if (sleutel !== laatsteTijden) { laatsteTijden = sleutel; renderTijden(); }
+  }
+
+  // ===== KALENDER =====
+  function renderKalender() {
+    const grid = $("kalender");
+    grid.querySelectorAll(".day, .leeg").forEach(function (n) { n.remove(); });
+
+    const minJ = nu.getFullYear(), minM = nu.getMonth();
+    let maxJ = minJ, maxM = minM;
+    if (state.kalender) {
+      const ks = Object.keys(state.kalender).sort();
+      if (ks.length) { const d = datumVan(ks[ks.length - 1]); maxJ = d.getFullYear(); maxM = d.getMonth(); }
+    }
+    const idx = weergave.j * 12 + weergave.m;
+    $("maandTitel").textContent = new Date(weergave.j, weergave.m, 1).toLocaleDateString("nl-NL", { month: "long", year: "numeric" });
+    $("vorige").disabled = idx <= minJ * 12 + minM;
+    $("volgende").disabled = idx >= maxJ * 12 + maxM;
+
+    const eerste = (new Date(weergave.j, weergave.m, 1).getDay() + 6) % 7; // maandag eerst
+    for (let i = 0; i < eerste; i++) {
+      const l = document.createElement("div");
+      l.className = "leeg";
+      grid.appendChild(l);
+    }
+
+    const aantal = new Date(weergave.j, weergave.m + 1, 0).getDate();
+    const vandaagKey = vandaag();
+    const skeleton = state.laden && !state.kalender;
+
+    for (let dag = 1; dag <= aantal; dag++) {
+      const key = weergave.j + "-" + pad(weergave.m + 1) + "-" + pad(dag);
+      const info = state.kalender ? state.kalender[key] : null;
+      const status = info ? info.status : null;
+      const beschikbaar = !!info && (status === "VRIJ" || status === "BEPERKT") && key >= vandaagKey;
+
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "day" + (status ? " s-" + status.toLowerCase() : "") + (key === vandaagKey ? " today" : "") + (skeleton ? " skeleton" : "");
+      b.dataset.key = key;
+      b.setAttribute("aria-disabled", beschikbaar ? "false" : "true");
+      b.setAttribute("aria-label", mooieDatum(key) + ", " + (status ? STATUS_TEKST[status] || "niet beschikbaar" : (skeleton ? "laden" : "niet beschikbaar")));
+
+      const num = document.createElement("span");
+      num.className = "num";
+      num.textContent = dag;
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      if (info && info.color && /^#[0-9a-f]{3,8}$/i.test(info.color)) dot.style.background = info.color;
+      b.append(num, dot);
+
+      if (key === state.datum) b.classList.add("selected");
+      b.addEventListener("click", function () {
+        if (b.getAttribute("aria-disabled") === "true") return;
+        kies(key);
+      });
+      grid.appendChild(b);
+    }
+    zetTabindex();
+    $("laadFout").hidden = !state.fout;
+    $("kalender").setAttribute("aria-busy", skeleton ? "true" : "false");
+    sendHoogte();
+  }
+
+  function zetTabindex() {
+    const dagen = Array.prototype.slice.call($("kalender").querySelectorAll(".day"));
+    let doel = dagen.filter(function (d) { return d.classList.contains("selected"); })[0] ||
+               dagen.filter(function (d) { return d.getAttribute("aria-disabled") === "false"; })[0] ||
+               dagen[0];
+    dagen.forEach(function (d) { d.tabIndex = (d === doel) ? 0 : -1; });
+  }
+
+  function kies(key) {
+    state.datum = key;
+    $("kalender").querySelectorAll(".day").forEach(function (d) {
+      d.classList.toggle("selected", d.dataset.key === key);
+    });
+    zetTabindex();
+    $("gekozenDatum").textContent = "Gekozen: " + mooieDatum(key);
+    $("naar2").disabled = false;
+    $("melding1").hidden = true;
+  }
+
+  // Pijltjestoetsen in de kalender
+  $("kalender").addEventListener("keydown", function (e) {
+    const dagen = Array.prototype.slice.call($("kalender").querySelectorAll(".day"));
+    const i = dagen.indexOf(document.activeElement);
+    if (i === -1) return;
+    let n = i;
+    if (e.key === "ArrowRight") n = i + 1;
+    else if (e.key === "ArrowLeft") n = i - 1;
+    else if (e.key === "ArrowDown") n = i + 7;
+    else if (e.key === "ArrowUp") n = i - 7;
+    else if (e.key === "Home") n = 0;
+    else if (e.key === "End") n = dagen.length - 1;
+    else return;
     e.preventDefault();
-    const btn = document.getElementById('submitBtn');
-    const msg = document.getElementById('statusMessage');
+    if (n >= 0 && n < dagen.length) {
+      dagen[i].tabIndex = -1;
+      dagen[n].tabIndex = 0;
+      dagen[n].focus();
+    }
+  });
 
-    const datumVal = document.getElementById('datum').value;
-    if (!datumVal) {
-      alert('Selecteer a.u.b. eerst een datum in de kalender.');
+  $("vorige").addEventListener("click", function () {
+    weergave.m--; if (weergave.m < 0) { weergave.m = 11; weergave.j--; }
+    renderKalender();
+  });
+  $("volgende").addEventListener("click", function () {
+    weergave.m++; if (weergave.m > 11) { weergave.m = 0; weergave.j++; }
+    renderKalender();
+  });
+  $("opnieuw").addEventListener("click", function () { laden(false); });
+
+  // ===== TIJD EN PERSONEN =====
+  function renderTijden() {
+    const c = $("tijden");
+    c.textContent = "";
+    state.config.tijden.forEach(function (t) {
+      const l = document.createElement("label");
+      l.className = "chip";
+      const i = document.createElement("input");
+      i.type = "radio"; i.name = "tijd"; i.value = t; i.checked = (state.tijd === t);
+      i.addEventListener("change", function () { state.tijd = t; $("naar3").disabled = false; });
+      const s = document.createElement("span");
+      s.textContent = t;
+      l.append(i, s);
+      c.appendChild(l);
+    });
+    if (state.config.tijden.indexOf(state.tijd) === -1) state.tijd = null;
+    $("naar3").disabled = !state.tijd;
+  }
+
+  function updatePersonen() {
+    $("aantal").textContent = state.personen;
+    $("minder").disabled = state.personen <= 1;
+    $("meer").disabled = state.personen >= state.config.maxPersonen;
+    const hint = $("groepHint");
+    if (state.config.telefoon) {
+      hint.textContent = "Met meer dan " + state.config.maxPersonen + " personen? Bel ons op " + state.config.telefoon + ".";
+      hint.hidden = false;
+    } else {
+      hint.hidden = true;
+    }
+  }
+  $("minder").addEventListener("click", function () { if (state.personen > 1) { state.personen--; updatePersonen(); } });
+  $("meer").addEventListener("click", function () { if (state.personen < state.config.maxPersonen) { state.personen++; updatePersonen(); } });
+
+  // ===== STAPPEN =====
+  function maakSamenvatting(doel, bookingId) {
+    doel.textContent = "";
+    const rijen = [
+      ["Datum", mooieDatum(state.datum)],
+      ["Tijd", state.tijd],
+      ["Personen", String(state.personen)]
+    ];
+    rijen.forEach(function (r) {
+      const d = document.createElement("div");
+      const a = document.createElement("span"); a.textContent = r[0];
+      const b = document.createElement("span"); b.textContent = r[1];
+      d.append(a, b);
+      doel.appendChild(d);
+    });
+  }
+
+  function gaNaar(n) {
+    state.stap = n;
+    ["stap1", "stap2", "stap3", "succes"].forEach(function (id, i) { $(id).hidden = (i + 1) !== n; });
+    $("stappen").hidden = (n === 4);
+    document.querySelectorAll("#stappen li").forEach(function (li) {
+      const s = Number(li.dataset.stap);
+      li.classList.toggle("active", s === n);
+      li.classList.toggle("done", s < n);
+    });
+    if (n === 2) $("datum2").textContent = mooieDatum(state.datum);
+    if (n === 3) maakSamenvatting($("samenvatting3"));
+    const h = $(n === 4 ? "h-succes" : "h-stap" + n);
+    if (h) h.focus({ preventScroll: true });
+    $("kaart").scrollIntoView({ behavior: "smooth", block: "start" });
+    sendHoogte();
+  }
+
+  $("naar2").addEventListener("click", function () { if (state.datum) gaNaar(2); });
+  $("terug1").addEventListener("click", function () { gaNaar(1); });
+  $("naar3").addEventListener("click", function () { if (state.tijd) gaNaar(3); });
+  $("terug2").addEventListener("click", function () { gaNaar(2); });
+
+  // ===== VERZENDEN =====
+  function toonFout(tekst, info) {
+    const f = $("fout3");
+    f.textContent = tekst;
+    f.className = "alert" + (info ? " info" : "");
+    f.hidden = false;
+    sendHoogte();
+  }
+
+  $("formulier").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (state.versturen) return;
+    $("fout3").hidden = true;
+    if (!e.target.reportValidity()) return;
+    if (!state.datum || !state.tijd) { gaNaar(1); return; }
+
+    const knop = $("verstuur");
+    state.versturen = true;
+    knop.disabled = true;
+    knop.textContent = "Bezig met reserveren…";
+
+    const payload = {
+      datum: state.datum,
+      tijd: state.tijd,
+      personen: state.personen,
+      naam: $("naam").value,
+      telefoon: $("telefoon").value,
+      email: $("email").value,
+      nieuwsbrief: $("nieuwsbrief").checked,
+      website: $("website").value
+    };
+
+    try {
+      // Geen custom headers en geen no-cors: zo kunnen we het echte antwoord lezen
+      const res = await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+      let data = null;
+      try { data = await res.json(); } catch (err) {}
+
+      if (data && data.result === "success") {
+        maakSamenvatting($("samenvattingSucces"));
+        $("bevestigNummer").textContent = data.bookingId;
+        wisCache();
+        gaNaar(4);
+        laden(true);
+      } else if (data && data.result === "error") {
+        if (data.code === "VOL") {
+          wisCache();
+          state.datum = null;
+          $("gekozenDatum").textContent = "";
+          $("naar2").disabled = true;
+          const m = $("melding1");
+          m.textContent = data.message;
+          m.hidden = false;
+          gaNaar(1);
+          laden(true);
+        } else {
+          toonFout(data.message || "Er ging iets mis. Probeer het opnieuw.");
+        }
+      } else {
+        onzeker();
+      }
+    } catch (err) {
+      onzeker();
+    }
+    state.versturen = false;
+    knop.disabled = false;
+    knop.textContent = "Reserveren";
+  });
+
+  function onzeker() {
+    toonFout("We konden niet controleren of je reservering is gelukt. Kijk eerst of je een bevestigingsmail hebt ontvangen voordat je het opnieuw probeert." +
+      (state.config.telefoon ? " Of bel ons: " + state.config.telefoon + "." : ""), true);
+  }
+
+  $("nieuw").addEventListener("click", function () {
+    state.datum = null; state.tijd = null; state.personen = 2;
+    $("formulier").reset();
+    $("gekozenDatum").textContent = "";
+    $("naar2").disabled = true;
+    renderTijden();
+    updatePersonen();
+    renderKalender();
+    gaNaar(1);
+  });
+
+  // ===== IFRAME: hoogte doorgeven aan de omringende pagina =====
+  function sendHoogte() {
+    try {
+      window.parent.postMessage({ type: "reservering-hoogte", hoogte: document.documentElement.scrollHeight }, "*");
+    } catch (e) {}
+  }
+  if (window.ResizeObserver) new ResizeObserver(sendHoogte).observe(document.body);
+
+  // ===== START =====
+  function start() {
+    if (SCRIPT_URL.indexOf("PLAK_HIER") !== -1) {
+      state.laden = false;
+      renderKalender();
+      const m = $("melding1");
+      m.textContent = "De web-app-URL is nog niet ingevuld bovenaan in het script (SCRIPT_URL).";
+      m.hidden = false;
       return;
     }
-
-    btn.disabled = true;
-    btn.innerText = "Verwerken...";
-
-    const formData = new URLSearchParams();
-    formData.append('datum', datumVal);
-    formData.append('tijd', document.getElementById('tijd').value);
-    formData.append('gasten', document.getElementById('gasten').value);
-    formData.append('naam', document.getElementById('naam').value);
-    formData.append('telefoon', document.getElementById('telefoon').value);
-    formData.append('email', document.getElementById('email').value);
-    formData.append('nieuwsbrief', document.getElementById('nieuwsbrief').checked);
-
-    fetch(SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString()
-    })
-    .then(() => {
-      msg.style.color = "#10b981";
-      msg.innerText = "Reservering succesvol geplaatst!";
-      document.getElementById('restaurantBookingForm').reset();
-      btn.disabled = false;
-      btn.innerText = "Reservering Bevestigen";
-      setTimeout(fetchCalendarData, 1000); // Herlaad direct de nieuwe bezetting
-    })
-    .catch(() => {
-      msg.style.color = "#ef4444";
-      msg.innerText = "Fout bij verzenden. Probeer opnieuw.";
-      btn.disabled = false;
-      btn.innerText = "Reservering Bevestigen";
-    });
-  });
+    const c = laadCache();
+    if (c) { verwerk(c); state.laden = false; }
+    pasConfigToe();
+    renderKalender();
+    laden(!!c);
+  }
+  start();
+})();
 </script>
-
 </body>
 </html>
