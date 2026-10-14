@@ -1,1 +1,615 @@
 
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Beheer reserveringen</title>
+<style>
+  :root {
+    --ink: #0f172a; --muted: #64748b; --line: #e2e8f0; --bg: #f1f5f9; --card: #ffffff; --soft: #f8fafc;
+    --vrij: #22c55e; --beperkt: #f59e0b; --vol: #dc2626; --gesloten: #cbd5e1; --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; padding: 14px; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.4;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 6px 24px rgba(15, 23, 42, .07); }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .btn { padding: 11px 16px; border: 0; border-radius: 10px; background: var(--ink); color: #fff; font-weight: 700; font-size: 14px; }
+  .btn.licht { background: #fff; color: var(--ink); border: 1.5px solid var(--line); }
+  .btn.klein { padding: 8px 12px; font-size: 13px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  input[type="password"], input[type="search"], input[type="date"] {
+    width: 100%; padding: 12px 13px; border: 1.5px solid var(--line); border-radius: 10px;
+    font: inherit; font-size: 15px; background: #fff; color: var(--ink);
+  }
+  input:focus { outline: none; border-color: var(--ink); }
+
+  .melding { padding: 10px 12px; border-radius: 10px; font-size: 13px; margin: 0 0 12px; background: #fef2f2; color: #b91c1c; }
+  .melding button { background: none; border: 0; padding: 0; margin-left: 8px; font-weight: 700; color: inherit; text-decoration: underline; }
+
+  /* Inloggen */
+  .login { max-width: 380px; margin: 12vh auto 0; padding: 26px; }
+  .login h1 { margin: 0 0 4px; font-size: 22px; }
+  .login p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+  .check { display: flex; gap: 8px; align-items: center; margin: 12px 0 16px; font-size: 13px; color: #334155; }
+  .check input { width: 18px; height: 18px; }
+  .login .btn { width: 100%; padding: 13px; }
+
+  /* Kop */
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .top h1 { margin: 0; font-size: 20px; }
+  .top small { color: var(--muted); }
+  .top-actions { display: flex; gap: 8px; }
+
+  .zoek { position: relative; margin-bottom: 12px; }
+  .zoek input { padding-right: 46px; }
+  .zoek button { position: absolute; right: 6px; top: 6px; width: 34px; height: 34px; border: 0; border-radius: 8px; background: var(--soft); font-size: 16px; }
+
+  /* Datum */
+  .datumnav { display: grid; grid-template-columns: 48px 1fr 48px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .pijl { height: 48px; border: 0; border-radius: 12px; background: #fff; font-size: 26px; line-height: 1; box-shadow: 0 2px 8px rgba(15, 23, 42, .06); }
+  .pijl:hover { background: var(--line); }
+  .datumtitel { text-align: center; font-weight: 700; font-size: 17px; text-transform: capitalize; }
+  .datumtools { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
+  .datumtools input { width: auto; padding: 8px 10px; font-size: 14px; }
+
+  /* Weekstrook */
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 12px; }
+  .wdag { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px; border: 0; border-radius: 12px; background: #fff; color: var(--ink); }
+  .wdag:hover { background: var(--line); }
+  .wn { font-size: 11px; color: var(--muted); font-weight: 600; }
+  .wd { font-size: 16px; font-weight: 700; }
+  .wbalk { display: block; width: 80%; height: 5px; border-radius: 5px; background: var(--line); overflow: hidden; }
+  .wbalk i { display: block; height: 100%; border-radius: 5px; background: var(--vrij); }
+  .wdag.s-beperkt .wbalk i { background: var(--beperkt); }
+  .wdag.s-vol .wbalk i { background: var(--vol); }
+  .wdag.s-gesloten { opacity: .55; }
+  .wa { font-size: 10px; color: var(--muted); }
+  .wdag.sel { background: var(--ink); color: #fff; opacity: 1; }
+  .wdag.sel .wn, .wdag.sel .wa { color: #cbd5e1; }
+  .wdag.sel .wbalk { background: rgba(255, 255, 255, .25); }
+
+  /* Dagtotalen */
+  .samenvatting { padding: 14px 16px; margin-bottom: 14px; }
+  .sam-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; }
+  .badge.s-vrij { background: var(--vrij); }
+  .badge.s-beperkt { background: var(--beperkt); }
+  .badge.s-vol { background: var(--vol); }
+  .badge.s-gesloten { background: #94a3b8; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .stats b { display: block; font-size: 22px; }
+  .stats span { font-size: 12px; color: var(--muted); }
+  .balk { height: 8px; border-radius: 8px; background: var(--line); overflow: hidden; margin-top: 12px; }
+  .balk i { display: block; height: 100%; border-radius: 8px; }
+
+  /* Reserveringen */
+  .tijdkop { display: flex; justify-content: space-between; align-items: baseline; margin: 18px 2px 8px; font-size: 16px; }
+  .tijdkop small { color: var(--muted); font-size: 12px; font-weight: 500; }
+  .res { background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); border-left: 5px solid var(--ink); }
+  .res.st-aangekomen { border-left-color: #16a34a; }
+  .res.st-no-show { border-left-color: var(--beperkt); }
+  .res.st-geannuleerd { border-left-color: var(--gesloten); opacity: .65; }
+  .res.st-geannuleerd .naam { text-decoration: line-through; }
+  .res-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .naam { font-weight: 700; font-size: 16px; }
+  .pers { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .res-contact { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; font-size: 14px; word-break: break-all; }
+  .res-contact a { color: #1d4ed8; text-decoration: none; }
+  .res-onder { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .res-id { font-size: 11px; color: var(--muted); }
+  .statusSel { padding: 7px 9px; border: 1.5px solid var(--line); border-radius: 9px; font: inherit; font-size: 13px; font-weight: 600; background: #fff; color: var(--ink); }
+  .print-status { display: none; font-weight: 700; font-size: 13px; }
+  .leeg { text-align: center; color: var(--muted); padding: 28px 10px; }
+
+  /* Zoekresultaten */
+  .zres { display: flex; justify-content: space-between; gap: 10px; width: 100%; text-align: left; background: #fff; border: 0; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); color: var(--ink); }
+  .zres:hover { background: var(--soft); }
+  .zres small { display: block; color: var(--muted); font-size: 12px; text-transform: capitalize; }
+  .zres .rechts { text-align: right; font-size: 13px; white-space: nowrap; }
+
+  .foot { text-align: center; color: var(--muted); font-size: 12px; margin: 18px 0 6px; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: 90vw; background: var(--ink); color: #fff; padding: 11px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); z-index: 10; }
+  .toast.fout { background: #b91c1c; }
+  .print-only { display: none; }
+
+  @media (max-width: 420px) {
+    .top-actions .btn { padding: 8px 10px; }
+    .wd { font-size: 14px; }
+  }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .noprint { display: none !important; }
+    .print-only { display: block; margin-bottom: 10px; }
+    .print-only h1 { margin: 0; font-size: 20px; text-transform: capitalize; }
+    .card, .res { box-shadow: none; border: 1px solid #cbd5e1; }
+    .res { break-inside: avoid; }
+    .statusSel { display: none; }
+    .print-status { display: inline; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- INLOGGEN -->
+  <section class="login card" id="login">
+    <h1>Beheer</h1>
+    <p>Voer de beheerpincode in om de reserveringen te bekijken.</p>
+    <div class="melding" id="loginFout" role="alert" hidden></div>
+    <form id="loginForm">
+      <label for="pin" class="sr" style="position:absolute;left:-9999px">Pincode</label>
+      <input type="password" id="pin" placeholder="Pincode" autocomplete="current-password" required>
+      <label class="check"><input type="checkbox" id="onthoud"> Onthoud op dit apparaat</label>
+      <button type="submit" class="btn" id="loginKnop">Inloggen</button>
+    </form>
+  </section>
+
+  <!-- APP -->
+  <div id="app" hidden>
+    <div class="print-only"><h1 id="printTitel"></h1></div>
+
+    <header class="top noprint">
+      <div>
+        <h1 id="restaurant">Beheer</h1>
+        <small>Reserveringen</small>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="btn licht klein" id="vernieuw" aria-label="Vernieuwen">&#8635;</button>
+        <button type="button" class="btn licht klein" id="printKnop">Printen</button>
+        <button type="button" class="btn klein" id="uitloggen">Uitloggen</button>
+      </div>
+    </header>
+
+    <div class="melding noprint" id="fout" role="alert" hidden><span id="foutTekst"></span><button type="button" id="opnieuw">Opnieuw proberen</button></div>
+
+    <div class="zoek noprint">
+      <input type="search" id="zoek" placeholder="Zoek op naam, telefoon of boekingsnummer" autocomplete="off" aria-label="Zoeken">
+      <button type="button" id="zoekWis" aria-label="Zoekopdracht wissen" hidden>&#10005;</button>
+    </div>
+
+    <section id="dagView">
+      <div class="datumnav noprint">
+        <button type="button" class="pijl" id="vorigeDag" aria-label="Vorige dag">&#8249;</button>
+        <div class="datumtitel" id="datumTitel" aria-live="polite"></div>
+        <button type="button" class="pijl" id="volgendeDag" aria-label="Volgende dag">&#8250;</button>
+      </div>
+      <div class="datumtools noprint">
+        <button type="button" class="btn licht klein" id="vandaagKnop">Vandaag</button>
+        <input type="date" id="datumKies" aria-label="Kies een datum">
+      </div>
+      <div class="week noprint" id="week" role="group" aria-label="Week"></div>
+      <div class="samenvatting card" id="dagSamenvatting"></div>
+      <div id="lijst"></div>
+    </section>
+
+    <section id="zoekView" hidden>
+      <h2 style="font-size:17px;margin:4px 2px 10px">Zoekresultaten</h2>
+      <div id="zoekLijst"></div>
+    </section>
+
+    <p class="foot noprint" id="bijgewerkt"></p>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQ4uzJUGX7DboQKUantcR-K7-ywcz0Di_o3SDLQL5DnekVbE3JIK4qR14hEUKzBajpBg/exec";
+
+  const STATUSSEN = ["Bevestigd", "Aangekomen", "No-show", "Geannuleerd"];
+  const DAGNAMEN_KORT = ["Zo", "Ma", "Di", "Wo", "Do", "Vr", "Za"];
+  const STATUS_TEKST = { VRIJ: "Vrij", BEPERKT: "Beperkt", VOL: "Vol", GESLOTEN: "Gesloten" };
+  const STATUS_KLEUR = { VRIJ: "var(--vrij)", BEPERKT: "var(--beperkt)", VOL: "var(--vol)", GESLOTEN: "var(--gesloten)" };
+  const SLEUTEL = "beheer_pin";
+
+  const $ = function (id) { return document.getElementById(id); };
+
+  let pin = "";
+  let huidig = null;     // laatst geladen dagdata
+  let datum = "";        // getoonde datum
+  let kent = null;       // bekende boekingsnummers van de getoonde datum
+  let reqTeller = 0;
+  let zoekTeller = 0;
+  let zoekTimer = null;
+  let toastTimer = null;
+
+  // ===== Hulpfuncties =====
+  function el(tag, props, kids) {
+    const n = document.createElement(tag);
+    if (props) Object.keys(props).forEach(function (k) {
+      if (k === "class") n.className = props[k];
+      else if (k === "text") n.textContent = props[k];
+      else if (k.slice(0, 2) === "on") n.addEventListener(k.slice(2), props[k]);
+      else n.setAttribute(k, props[k]);
+    });
+    (kids || []).forEach(function (c) { if (c) n.append(c); });
+    return n;
+  }
+
+  function deel(key) { return key.split("-").map(Number); }
+  function addDagen(key, n) {
+    const p = deel(key);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10);
+  }
+  function weekdag(key) {
+    const p = deel(key);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
+  }
+  function mooi(key, kort) {
+    const p = deel(key);
+    const d = new Date(p[0], p[1] - 1, p[2]);
+    return d.toLocaleDateString("nl-NL", kort
+      ? { weekday: "short", day: "numeric", month: "short" }
+      : { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  }
+  function slug(s) { return String(s).toLowerCase().replace(/[^a-z]/g, "-"); }
+
+  function toast(tekst, isFout) {
+    const t = $("toast");
+    t.textContent = tekst;
+    t.className = "toast" + (isFout ? " fout" : "");
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 6000);
+  }
+
+  function toonFout(tekst) { $("foutTekst").textContent = tekst; $("fout").hidden = false; }
+  function verbergFout() { $("fout").hidden = true; }
+
+  // ===== Server =====
+  async function api(body) {
+    // Geen custom headers: zo kunnen we het antwoord van Apps Script gewoon lezen
+    const res = await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(Object.assign({ pin: pin }, body)) });
+    return await res.json();
+  }
+
+  // ===== Inloggen / uitloggen =====
+  function bewaarPin(onthoud) {
+    try {
+      sessionStorage.setItem(SLEUTEL, pin);
+      if (onthoud) localStorage.setItem(SLEUTEL, pin); else localStorage.removeItem(SLEUTEL);
+    } catch (e) {}
+  }
+  function wisPin() {
+    try { sessionStorage.removeItem(SLEUTEL); localStorage.removeItem(SLEUTEL); } catch (e) {}
+  }
+  function toonLogin(bericht) {
+    $("app").hidden = true;
+    $("login").hidden = false;
+    const m = $("loginFout");
+    if (bericht) { m.textContent = bericht; m.hidden = false; } else { m.hidden = true; }
+    $("pin").value = "";
+    $("pin").focus();
+  }
+  function toonApp() { $("login").hidden = true; $("app").hidden = false; }
+
+  function uitloggen(bericht) {
+    pin = ""; huidig = null; datum = ""; kent = null;
+    wisPin();
+    toonLogin(bericht || "");
+  }
+
+  $("loginForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const invoer = $("pin").value.trim();
+    if (!invoer) return;
+    const knop = $("loginKnop");
+    knop.disabled = true;
+    knop.textContent = "Controleren…";
+    pin = invoer;
+    $("loginFout").hidden = true;
+    try {
+      const r = await api({ actie: "beheer_login" });
+      if (r.result === "success") {
+        bewaarPin($("onthoud").checked);
+        $("restaurant").textContent = r.restaurant || "Beheer";
+        toonApp();
+        await laad("", false);
+      } else {
+        pin = "";
+        $("loginFout").textContent = r.message || "Inloggen mislukt.";
+        $("loginFout").hidden = false;
+      }
+    } catch (err) {
+      pin = "";
+      $("loginFout").textContent = "Geen verbinding met de server. Probeer het opnieuw.";
+      $("loginFout").hidden = false;
+    }
+    knop.disabled = false;
+    knop.textContent = "Inloggen";
+  });
+
+  $("uitloggen").addEventListener("click", function () { uitloggen(""); });
+
+  // ===== Dag laden =====
+  async function laad(d, stil) {
+    const mijn = ++reqTeller;
+    if (!stil && !huidig) {
+      $("lijst").textContent = "";
+      $("lijst").append(el("p", { class: "leeg", text: "Laden…" }));
+    }
+    let r;
+    try {
+      r = await api({ actie: "beheer_dag", datum: d || "" });
+    } catch (err) {
+      if (mijn !== reqTeller) return;
+      if (!stil) toonFout("Geen verbinding met de server.");
+      return;
+    }
+    if (mijn !== reqTeller) return;
+    if (r.result !== "success") {
+      if (r.code === "PIN") { uitloggen(r.message); return; }
+      if (!stil) toonFout(r.message || "Er ging iets mis.");
+      return;
+    }
+    verbergFout();
+    verwerk(r);
+  }
+
+  function verwerk(r) {
+    const nieuweDatum = r.datum !== datum;
+    datum = r.datum;
+    if (nieuweDatum || !kent) {
+      kent = new Set(r.reserveringen.map(function (x) { return x.id; }));
+    } else {
+      r.reserveringen.forEach(function (x) {
+        if (!kent.has(x.id)) {
+          kent.add(x.id);
+          toast("Nieuwe reservering: " + x.naam + " (" + x.tijd + ", " + x.personen + " pers.)");
+        }
+      });
+    }
+    huidig = r;
+    render(r);
+  }
+
+  // ===== Weergave =====
+  function render(r) {
+    $("restaurant").textContent = r.restaurant || "Beheer";
+    $("datumTitel").textContent = mooi(r.datum);
+    $("datumKies").value = r.datum;
+    $("vandaagKnop").disabled = (r.datum === r.vandaag);
+    $("printTitel").textContent = (r.restaurant || "Reserveringen") + " – " + mooi(r.datum);
+    renderWeek(r);
+    renderSamenvatting(r);
+    renderLijst(r);
+    $("bijgewerkt").textContent = "Bijgewerkt om " +
+      new Date().toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }) +
+      " · ververst automatisch elke minuut";
+  }
+
+  function renderWeek(r) {
+    const w = $("week");
+    w.textContent = "";
+    r.week.forEach(function (d) {
+      const pct = d.maxTafels > 0 ? Math.min(100, Math.round(d.bezetTafels / d.maxTafels * 100)) : (d.status === "VOL" ? 100 : 0);
+      const gekozen = d.datum === r.datum;
+      w.append(el("button", {
+        type: "button",
+        class: "wdag s-" + d.status.toLowerCase() + (gekozen ? " sel" : ""),
+        "aria-pressed": gekozen ? "true" : "false",
+        "aria-label": mooi(d.datum) + ", " + STATUS_TEKST[d.status] + ", " + d.reserveringen + " reserveringen",
+        onclick: function () { gaNaar(d.datum); }
+      }, [
+        el("span", { class: "wn", text: DAGNAMEN_KORT[weekdag(d.datum)] }),
+        el("span", { class: "wd", text: String(parseInt(d.datum.slice(8), 10)) }),
+        el("span", { class: "wbalk" }, [el("i", { style: "width:" + (d.gesloten ? 0 : pct) + "%" })]),
+        el("span", { class: "wa", text: d.gesloten ? "dicht" : String(d.reserveringen) })
+      ]));
+    });
+  }
+
+  function stat(waarde, label) {
+    return el("div", null, [el("b", { text: String(waarde) }), el("span", { text: label })]);
+  }
+
+  function renderSamenvatting(r) {
+    const d = r.dag;
+    const box = $("dagSamenvatting");
+    box.textContent = "";
+    const pct = d.maxTafels > 0 ? Math.min(100, Math.round(d.bezetTafels / d.maxTafels * 100)) : (d.status === "VOL" ? 100 : 0);
+    box.append(
+      el("div", { class: "sam-top" }, [
+        el("strong", { text: d.gesloten ? "Gesloten dag" : "Dagoverzicht" }),
+        el("span", { class: "badge s-" + d.status.toLowerCase(), text: STATUS_TEKST[d.status] })
+      ]),
+      el("div", { class: "stats" }, [
+        stat(d.reserveringen, "reserveringen"),
+        stat(d.personen, "personen"),
+        stat(d.gesloten ? "–" : d.bezetTafels + " / " + d.maxTafels, "tafels bezet")
+      ]),
+      el("div", { class: "balk" }, [el("i", { style: "width:" + (d.gesloten ? 0 : pct) + "%;background:" + STATUS_KLEUR[d.status] })])
+    );
+  }
+
+  function renderLijst(r) {
+    const lijst = $("lijst");
+    lijst.textContent = "";
+    if (!r.reserveringen.length) {
+      lijst.append(el("p", { class: "leeg", text: r.dag.gesloten ? "We zijn deze dag gesloten." : "Geen reserveringen voor deze dag." }));
+      return;
+    }
+    const groepen = {};
+    const volgorde = [];
+    r.reserveringen.forEach(function (x) {
+      const t = x.tijd || "";
+      if (!groepen[t]) { groepen[t] = []; volgorde.push(t); }
+      groepen[t].push(x);
+    });
+    volgorde.forEach(function (t) {
+      const actief = groepen[t].filter(function (x) { return x.status !== "Geannuleerd"; });
+      const pers = actief.reduce(function (a, x) { return a + x.personen; }, 0);
+      lijst.append(el("h3", { class: "tijdkop" }, [
+        el("span", { text: t || "Tijd onbekend" }),
+        el("small", { text: actief.length ? actief.length + " res. · " + pers + " pers." : "alleen geannuleerd" })
+      ]));
+      groepen[t].forEach(function (x) { lijst.append(kaart(x)); });
+    });
+  }
+
+  function kaart(x) {
+    const sel = el("select", {
+      class: "statusSel",
+      "aria-label": "Status van " + x.naam,
+      onchange: function (e) { wijzigStatus(x, e.target); }
+    });
+    const opties = STATUSSEN.indexOf(x.status) === -1 ? STATUSSEN.concat([x.status]) : STATUSSEN;
+    opties.forEach(function (s) {
+      const o = el("option", { value: s, text: s });
+      if (s === x.status) o.selected = true;
+      sel.append(o);
+    });
+
+    const contact = el("div", { class: "res-contact" });
+    const telCijfers = x.telefoon.replace(/[^\d+]/g, "");
+    if (telCijfers) contact.append(el("a", { href: "tel:" + telCijfers, text: x.telefoon }));
+    if (/^[^\s@]+@[^\s@]+$/.test(x.email)) contact.append(el("a", { href: "mailto:" + x.email, text: x.email }));
+
+    return el("div", { class: "res st-" + slug(x.status) }, [
+      el("div", { class: "res-top" }, [
+        el("span", { class: "naam", text: x.naam }),
+        el("span", { class: "pers", text: x.personen + " pers. · " + x.tafels + (x.tafels === 1 ? " tafel" : " tafels") })
+      ]),
+      contact,
+      el("div", { class: "res-onder" }, [
+        el("span", { class: "res-id", text: x.id }),
+        sel,
+        el("span", { class: "print-status", text: x.status })
+      ])
+    ]);
+  }
+
+  async function wijzigStatus(x, sel) {
+    const nieuw = sel.value;
+    const oud = x.status;
+    if (nieuw === oud) return;
+    if (nieuw === "Geannuleerd" && !confirm("Reservering van " + x.naam + " annuleren? De tafels komen weer vrij.")) {
+      sel.value = oud;
+      return;
+    }
+    sel.disabled = true;
+    try {
+      const r = await api({ actie: "beheer_status", id: x.id, status: nieuw });
+      if (r.result === "success") {
+        x.status = nieuw;
+        toast(x.naam + ": " + nieuw.toLowerCase());
+        await laad(datum, true);
+      } else {
+        sel.value = oud;
+        if (r.code === "PIN") uitloggen(r.message); else toast(r.message || "Wijzigen mislukt.", true);
+      }
+    } catch (err) {
+      sel.value = oud;
+      toast("Geen verbinding. De wijziging is niet opgeslagen.", true);
+    }
+    sel.disabled = false;
+  }
+
+  // ===== Navigatie =====
+  function toonDag() { $("zoekView").hidden = true; $("dagView").hidden = false; }
+
+  function gaNaar(d) {
+    $("zoek").value = "";
+    $("zoekWis").hidden = true;
+    toonDag();
+    laad(d, false);
+  }
+
+  $("vorigeDag").addEventListener("click", function () { if (datum) gaNaar(addDagen(datum, -1)); });
+  $("volgendeDag").addEventListener("click", function () { if (datum) gaNaar(addDagen(datum, 1)); });
+  $("vandaagKnop").addEventListener("click", function () { gaNaar(huidig ? huidig.vandaag : ""); });
+  $("datumKies").addEventListener("change", function (e) { if (e.target.value) gaNaar(e.target.value); });
+  $("vernieuw").addEventListener("click", function () { laad(datum, false); });
+  $("opnieuw").addEventListener("click", function () { laad(datum, false); });
+  $("printKnop").addEventListener("click", function () { window.print(); });
+
+  // ===== Zoeken =====
+  $("zoek").addEventListener("input", function () {
+    clearTimeout(zoekTimer);
+    const q = $("zoek").value.trim();
+    $("zoekWis").hidden = !$("zoek").value;
+    if (q.length < 2) { toonDag(); return; }
+    zoekTimer = setTimeout(function () { zoek(q); }, 350);
+  });
+  $("zoekWis").addEventListener("click", function () {
+    $("zoek").value = "";
+    $("zoekWis").hidden = true;
+    toonDag();
+    $("zoek").focus();
+  });
+
+  async function zoek(q) {
+    const mijn = ++zoekTeller;
+    $("dagView").hidden = true;
+    $("zoekView").hidden = false;
+    const lijst = $("zoekLijst");
+    lijst.textContent = "";
+    lijst.append(el("p", { class: "leeg", text: "Zoeken…" }));
+    let r;
+    try {
+      r = await api({ actie: "beheer_zoek", q: q });
+    } catch (err) {
+      if (mijn !== zoekTeller) return;
+      lijst.textContent = "";
+      lijst.append(el("p", { class: "leeg", text: "Geen verbinding met de server." }));
+      return;
+    }
+    if (mijn !== zoekTeller || $("zoek").value.trim() !== q) return;
+    if (r.result !== "success") {
+      if (r.code === "PIN") { uitloggen(r.message); return; }
+      lijst.textContent = "";
+      lijst.append(el("p", { class: "leeg", text: r.message || "Zoeken mislukt." }));
+      return;
+    }
+    lijst.textContent = "";
+    if (!r.resultaten.length) {
+      lijst.append(el("p", { class: "leeg", text: "Geen reserveringen gevonden." }));
+      return;
+    }
+    r.resultaten.forEach(function (x) {
+      lijst.append(el("button", { type: "button", class: "zres", onclick: function () { gaNaar(x.datum); } }, [
+        el("div", null, [
+          el("strong", { text: x.naam }),
+          el("small", { text: mooi(x.datum, true) + " · " + x.tijd + " · " + x.id })
+        ]),
+        el("div", { class: "rechts", text: x.personen + " pers. · " + x.status })
+      ]));
+    });
+  }
+
+  // ===== Automatisch verversen =====
+  setInterval(function () {
+    if ($("app").hidden || document.hidden || !datum) return;
+    if ($("zoek").value.trim().length >= 2) return;
+    if (document.activeElement && document.activeElement.tagName === "SELECT") return;
+    laad(datum, true);
+  }, 60000);
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && !$("app").hidden && datum && $("zoek").value.trim().length < 2) laad(datum, true);
+  });
+
+  // ===== Start =====
+  (function start() {
+    let p = "";
+    try { p = sessionStorage.getItem(SLEUTEL) || localStorage.getItem(SLEUTEL) || ""; } catch (e) {}
+    if (!p) { toonLogin(""); return; }
+    pin = p;
+    toonApp();
+    laad("", false);
+  })();
+})();
+</script>
+</body>
+</html>
