@@ -104,11 +104,12 @@
 
   .veld { margin-bottom: 14px; }
   .veld label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 5px; }
-  .veld input[type="text"], .veld input[type="tel"], .veld input[type="email"] {
+  .veld input[type="text"], .veld input[type="tel"], .veld input[type="email"], .veld textarea {
     width: 100%; padding: 12px 13px; border: 1.5px solid var(--line); border-radius: 10px;
     font: inherit; font-size: 15px; background: #fff; color: var(--text);
   }
-  .veld input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .veld textarea { resize: vertical; min-height: 78px; }
+  .veld input:focus, .veld textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
   .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #334155; margin: 4px 0 16px; }
   .check input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--accent); }
   .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
@@ -116,7 +117,7 @@
   .samenvatting { background: var(--soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; font-size: 14px; }
   .samenvatting div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
   .samenvatting span:first-child { color: var(--muted); }
-  .samenvatting span:last-child { font-weight: 600; text-align: right; }
+  .samenvatting span:last-child { font-weight: 600; text-align: right; word-break: break-word; }
 
   .btn {
     width: 100%; padding: 14px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent);
@@ -226,6 +227,10 @@
           <label for="email">E-mailadres</label>
           <input type="email" id="email" name="email" autocomplete="email" maxlength="120" required>
         </div>
+        <div class="veld" id="opmerkingRij">
+          <label for="opmerking">Opmerking (optioneel)</label>
+          <textarea id="opmerking" name="opmerking" maxlength="300" rows="3" placeholder="Bijvoorbeeld allergieën, een kinderstoel of een bijzondere gelegenheid"></textarea>
+        </div>
         <label class="check" id="nieuwsbriefRij" hidden>
           <input type="checkbox" id="nieuwsbrief" name="nieuwsbrief">
           <span>Houd mij op de hoogte met de nieuwsbrief</span>
@@ -269,13 +274,14 @@
   const STATUS_TEKST = { VRIJ: "beschikbaar", BEPERKT: "beperkt beschikbaar", VOL: "vol", GESLOTEN: "gesloten" };
 
   const state = {
-    config: { naam: "Tafel reserveren", intro: "", accent: "#10b981", telefoon: "", tijden: [], maxPersonen: 10, nieuwsbrief: false },
+    config: { naam: "Tafel reserveren", intro: "", accent: "#10b981", telefoon: "", tijden: [], maxPersonen: 10, nieuwsbrief: false, opmerking: true },
     kalender: null,
     laden: true,
     fout: false,
     datum: null,
     tijd: null,
     personen: 2,
+    opmerking: "",
     stap: 1,
     versturen: false
   };
@@ -372,6 +378,7 @@
     document.title = c.naam || "Tafel reserveren";
     $("intro").textContent = c.intro || "";
     $("nieuwsbriefRij").hidden = !c.nieuwsbrief;
+    $("opmerkingRij").hidden = (c.opmerking === false);
     if (state.personen > c.maxPersonen) state.personen = c.maxPersonen;
     updatePersonen();
     const sleutel = JSON.stringify(c.tijden);
@@ -524,13 +531,14 @@
   $("meer").addEventListener("click", function () { if (state.personen < state.config.maxPersonen) { state.personen++; updatePersonen(); } });
 
   // ===== STAPPEN =====
-  function maakSamenvatting(doel) {
+  function maakSamenvatting(doel, metOpmerking) {
     doel.textContent = "";
     const rijen = [
       ["Datum", mooieDatum(state.datum)],
       ["Tijd", state.tijd],
       ["Personen", String(state.personen)]
     ];
+    if (metOpmerking && state.opmerking) rijen.push(["Opmerking", state.opmerking]);
     rijen.forEach(function (r) {
       const d = document.createElement("div");
       const a = document.createElement("span"); a.textContent = r[0];
@@ -550,7 +558,7 @@
       li.classList.toggle("done", s < n);
     });
     if (n === 2) $("datum2").textContent = mooieDatum(state.datum);
-    if (n === 3) maakSamenvatting($("samenvatting3"));
+    if (n === 3) maakSamenvatting($("samenvatting3"), false);
     const h = $(n === 4 ? "h-succes" : "h-stap" + n);
     if (h) h.focus({ preventScroll: true });
     $("kaart").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -583,6 +591,9 @@
     knop.disabled = true;
     knop.textContent = "Bezig met reserveren…";
 
+    const opmerking = $("opmerkingRij").hidden ? "" : $("opmerking").value.trim();
+    state.opmerking = opmerking;
+
     const payload = {
       datum: state.datum,
       tijd: state.tijd,
@@ -590,6 +601,7 @@
       naam: $("naam").value,
       telefoon: $("telefoon").value,
       email: $("email").value,
+      opmerking: opmerking,
       nieuwsbrief: $("nieuwsbrief").checked,
       website: $("website").value
     };
@@ -601,7 +613,7 @@
       try { data = await res.json(); } catch (err) {}
 
       if (data && data.result === "success") {
-        maakSamenvatting($("samenvattingSucces"));
+        maakSamenvatting($("samenvattingSucces"), true);
         $("bevestigNummer").textContent = data.bookingId;
         wisCache();
         gaNaar(4);
@@ -637,7 +649,7 @@
   }
 
   $("nieuw").addEventListener("click", function () {
-    state.datum = null; state.tijd = null; state.personen = 2;
+    state.datum = null; state.tijd = null; state.personen = 2; state.opmerking = "";
     $("formulier").reset();
     $("gekozenDatum").textContent = "";
     $("naar2").disabled = true;
