@@ -164,6 +164,7 @@
   .kday.s-beperkt .dot { background: var(--beperkt); }
   .kday.s-vol .dot { background: var(--vol); }
   .kday.s-gesloten .dot { background: var(--gesloten); }
+  .kday.s-gesloten:not(.sel) { color: #64748b; }
   .kday:hover:not(.off):not(.sel) { background: var(--line); }
   .kday.off { opacity: .3; cursor: not-allowed; }
   .kday.sel { background: var(--ink); color: #fff; }
@@ -544,7 +545,7 @@
         el("span", { class: "wn", text: DAGNAMEN_KORT[weekdag(key)] }),
         el("span", { class: "wd", text: nr }),
         el("span", { class: "wbalk" }, [el("i", { style: "width:" + (d.gesloten ? 0 : pct) + "%" })]),
-        el("span", { class: "wa", text: d.gesloten ? "dicht" : String(d.reserveringen) })
+        el("span", { class: "wa", text: d.gesloten && !d.reserveringen ? "dicht" : String(d.reserveringen) })
       ]));
     }
   }
@@ -948,7 +949,8 @@
     let tekst = mooi(form.datum, true);
     let waarschuwing = false;
     if (k && k.status === "GESLOTEN") {
-      tekst += " \u2014 gesloten";
+      waarschuwing = true;
+      tekst += " \u2014 gesloten. Doorgaan vraagt om een extra bevestiging.";
     } else if (!k) {
       tekst += " \u2014 beschikbaarheid onbekend";
     } else {
@@ -1003,7 +1005,8 @@
       const key = j + "-" + pad(m + 1) + "-" + pad(dag);
       const info = kalenderBoek[key];
       const isOrig = !!form.res && form.res.datum === key;
-      const kiesbaar = (!!info && info.status !== "GESLOTEN" && key >= vandaag) || isOrig;
+      // Ook gesloten en volle dagen zijn te kiezen (met een waarschuwing); alleen het verleden en dagen buiten de boekbare periode niet
+      const kiesbaar = (!!info && key >= vandaag) || isOrig;
       const st = info ? info.status : "";
       const b = el("button", {
         type: "button",
@@ -1028,7 +1031,7 @@
       el("span", null, [el("i", { style: "background:var(--vrij)" }), document.createTextNode("Vrij")]),
       el("span", null, [el("i", { style: "background:var(--beperkt)" }), document.createTextNode("Beperkt")]),
       el("span", null, [el("i", { style: "background:var(--vol)" }), document.createTextNode("Vol (toch boeken kan)")]),
-      el("span", null, [el("i", { style: "background:var(--gesloten)" }), document.createTextNode("Gesloten")])
+      el("span", null, [el("i", { style: "background:var(--gesloten)" }), document.createTextNode("Gesloten (toch boeken kan)")])
     ]));
   }
 
@@ -1096,6 +1099,10 @@
       if (modus === "wijzig") toast("Reservering gewijzigd" + mt.tekst, mt.fout);
       else toast("Reservering " + r.bookingId + " toegevoegd" + mt.tekst, mt.fout);
       naWijziging(gekozen);
+      return;
+    }
+    if (r.code === "GESLOTEN" && !overrule) {
+      if (confirm("Let op: we zijn deze dag gesloten.\n\nToch een reservering " + (modus === "wijzig" ? "op deze dag zetten" : "maken") + "?")) return verstuurForm(true);
       return;
     }
     if (r.code === "VOL" && !overrule) {
