@@ -367,10 +367,35 @@
   function verbergFout() { $("fout").hidden = true; }
 
   // ===== Server =====
-  async function api(body) {
-    // Geen custom headers: zo kunnen we het antwoord van Apps Script gewoon lezen
-    const res2 = await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(Object.assign({ pin: pin }, body)) });
-    return await res2.json();
+  function wacht(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // pogingen > 1 alleen voor acties die veilig opnieuw gedaan kunnen worden (lezen, zoeken, status zetten).
+  // Boeken, wijzigen en opschonen worden nooit automatisch herhaald.
+  async function api(body, opts) {
+    const o = opts || {};
+    const pogingen = o.pogingen || 1;
+    const timeout = o.timeout || 20000;
+    let laatste = null;
+    for (let i = 0; i < pogingen; i++) {
+      if (i > 0) await wacht(800 * i);
+      const ctl = new AbortController();
+      const timer = setTimeout(function () { ctl.abort(); }, timeout);
+      try {
+        // Geen custom headers: zo kunnen we het antwoord van Apps Script gewoon lezen
+        const res2 = await fetch(SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify(Object.assign({ pin: pin }, body)),
+          signal: ctl.signal
+        });
+        const data = JSON.parse(await res2.text());   // een foutpagina van Google is geen JSON en telt als mislukt
+        clearTimeout(timer);
+        return data;
+      } catch (err) {
+        clearTimeout(timer);
+        laatste = err;
+      }
+    }
+    throw laatste;
   }
 
   // ===== Inloggen / uitloggen =====
@@ -396,6 +421,7 @@
   function uitloggen(bericht) {
     if (modalOpen) sluitModal(true);
     pin = ""; dagen = {}; res = {}; venster = null; kalenderBoek = {}; datum = ""; vandaag = ""; kent = new Set();
+    zoekTeller++;
     wisPin();
     toonLogin(bericht || "");
   }
@@ -411,7 +437,7 @@
     pin = invoer;
     try {
       // Eén aanroep: controleert de pincode en haalt meteen de hele periode op
-      const r = await api({ actie: "beheer_bereik", van: "", tot: "" });
+      const r = await api({ actie: "beheer_bereik", van: "", tot: "" }, { pogingen: 2 });
       if (r.result === "success") {
         bewaarPin($("onthoud").checked);
         toonApp();
@@ -466,7 +492,7 @@
     if (venster && !o.stil) { $("bijgewerkt").textContent = "Verversen…"; }
     let r;
     try {
-      r = await api({ actie: "beheer_bereik", van: van, tot: tot });
+      r = await api({ actie: "beheer_bereik", van: van, tot: tot }, { pogingen: o.stil ? 2 : 3 });
     } catch (err) {
       if (mijn !== reqTeller) return false;
       if (!o.stil) toonFout("Geen verbinding met de server.");
@@ -499,6 +525,7 @@
     else { van = addDagen(d, -14); tot = addDagen(d, 42); }
     $("zoek").value = "";
     $("zoekWis").hidden = true;
+    zoekTeller++;
     toonDag();
     datum = d;
     await laadBereik(van, tot, { meldNieuw: false });
@@ -672,7 +699,7 @@
     herbereken(x.datum);
     render();
     try {
-      const r = await api({ actie: "beheer_status", id: x.id, status: nieuw });
+      const r = await api({ actie: "beheer_status", id: x.id, status: nieuw }, { pogingen: 2 });
       if (r.result === "success") {
         toast(x.naam + ": " + nieuw.toLowerCase());
       } else {
@@ -699,6 +726,7 @@
   async function gaNaar(d) {
     $("zoek").value = "";
     $("zoekWis").hidden = true;
+    zoekTeller++;
     toonDag();
     const maandag = addDagen(d, -((weekdag(d) + 6) % 7));
     // Binnen de geladen periode? Dan direct tonen, zonder wachten
@@ -726,15 +754,71 @@
   $("nieuwKnop").addEventListener("click", function () { openForm("nieuw", null); });
   $("opschoonKnop").addEventListener("click", function () { openOpschonen(); });
 
-  // ===== Zoeken (over alle dagen, dus via de server) =====
+  // ===== Zoeken: eerst direct in de geladen weken, daarna ook op de server (alle reserveringen) =====
+  function zoekLokaal(q) {
+    const z = q.toLowerCase();
+    const cijfers = q.replace(/\D/g, "");
+    const alle = [];
+    Object.keys(res).forEach(function (k) { res[k].forEach(function (x) { alle.push(x); }); });
+    const treffers = alle.filter(function (x) {
+      if ((x.naam || "").toLowerCase().indexOf(z) !== -1) return true;
+      if ((x.id || "").toLowerCase().indexOf(z) !== -1) return true;
+      if ((x.email || "").toLowerCase().indexOf(z) !== -1) return true;
+      if (cijfers.length >= 3 && (x.telefoon || "").replace(/\D/g, "").indexOf(cijfers) !== -1) return true;
+      return false;
+    });
+    const toekomst = treffers.filter(function (x) { return x.datum >= vandaag; })
+      .sort(function (a, b) { return a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : (a.tijd < b.tijd ? -1 : a.tijd > b.tijd ? 1 : 0); });
+    const verleden = treffers.filter(function (x) { return x.datum < vandaag; })
+      .sort(function (a, b) { return a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : 0; });
+    return toekomst.concat(verleden).slice(0, 60);
+  }
+
+  function zoekRij(x) {
+    return el("button", { type: "button", class: "zres", onclick: function () { gaNaar(x.datum); } }, [
+      el("div", null, [
+        el("strong", { text: x.naam }),
+        el("small", { text: mooi(x.datum, true) + " · " + x.tijd + " · " + x.id })
+      ]),
+      el("div", { class: "rechts", text: x.personen + " pers. · " + x.status })
+    ]);
+  }
+
+  // status: "kort" (nog geen server), "bezig" (server zoekt nog), "klaar", "fout"
+  function toonZoekResultaten(items, status) {
+    const lijst = $("zoekLijst");
+    lijst.textContent = "";
+    if (status === "fout") {
+      lijst.append(el("div", { class: "melding" }, [
+        el("span", { text: "De server reageerde niet goed. Alleen de reserveringen in het overzicht zijn doorzocht." }),
+        el("button", { type: "button", text: "Opnieuw proberen", onclick: function () {
+          const q = $("zoek").value.trim();
+          if (q.length >= 3) { toonZoekResultaten(zoekLokaal(q), "bezig"); zoek(q); }
+        } })
+      ]));
+    } else if (status === "bezig") {
+      lijst.append(el("p", { class: "hint", text: "Zoeken in alle reserveringen\u2026" }));
+    } else if (status === "kort") {
+      lijst.append(el("p", { class: "hint", text: "Typ minstens 3 tekens om ook in andere periodes te zoeken." }));
+    }
+    if (!items.length && status !== "bezig") lijst.append(el("p", { class: "leeg", text: "Geen reserveringen gevonden." }));
+    items.forEach(function (x) { lijst.append(zoekRij(x)); });
+  }
+
   $("zoek").addEventListener("input", function () {
     clearTimeout(zoekTimer);
     const q = $("zoek").value.trim();
     $("zoekWis").hidden = !$("zoek").value;
-    if (q.length < 2) { toonDag(); return; }
-    zoekTimer = setTimeout(function () { zoek(q); }, 350);
+    if (q.length < 2) { zoekTeller++; toonDag(); return; }
+    $("dagView").hidden = true;
+    $("zoekView").hidden = false;
+    if (q.length < 3) { toonZoekResultaten(zoekLokaal(q), "kort"); return; }
+    toonZoekResultaten(zoekLokaal(q), "bezig");
+    zoekTimer = setTimeout(function () { zoek(q); }, 600);
   });
   $("zoekWis").addEventListener("click", function () {
+    clearTimeout(zoekTimer);
+    zoekTeller++;
     $("zoek").value = "";
     $("zoekWis").hidden = true;
     toonDag();
@@ -743,41 +827,13 @@
 
   async function zoek(q) {
     const mijn = ++zoekTeller;
-    $("dagView").hidden = true;
-    $("zoekView").hidden = false;
-    const lijst = $("zoekLijst");
-    lijst.textContent = "";
-    lijst.append(el("p", { class: "leeg", text: "Zoeken…" }));
-    let r;
-    try {
-      r = await api({ actie: "beheer_zoek", q: q });
-    } catch (err) {
-      if (mijn !== zoekTeller) return;
-      lijst.textContent = "";
-      lijst.append(el("p", { class: "leeg", text: "Geen verbinding met de server." }));
-      return;
-    }
-    if (mijn !== zoekTeller || $("zoek").value.trim() !== q) return;
-    if (r.result !== "success") {
-      if (r.code === "PIN") { uitloggen(r.message); return; }
-      lijst.textContent = "";
-      lijst.append(el("p", { class: "leeg", text: r.message || "Zoeken mislukt." }));
-      return;
-    }
-    lijst.textContent = "";
-    if (!r.resultaten.length) {
-      lijst.append(el("p", { class: "leeg", text: "Geen reserveringen gevonden." }));
-      return;
-    }
-    r.resultaten.forEach(function (x) {
-      lijst.append(el("button", { type: "button", class: "zres", onclick: function () { gaNaar(x.datum); } }, [
-        el("div", null, [
-          el("strong", { text: x.naam }),
-          el("small", { text: mooi(x.datum, true) + " · " + x.tijd + " · " + x.id })
-        ]),
-        el("div", { class: "rechts", text: x.personen + " pers. · " + x.status })
-      ]));
-    });
+    let r = null;
+    try { r = await api({ actie: "beheer_zoek", q: q }, { pogingen: 3 }); } catch (err) { r = null; }
+    if (mijn !== zoekTeller || $("zoek").value.trim() !== q) return;   // er is intussen iets anders getypt
+    if (!r) { toonZoekResultaten(zoekLokaal(q), "fout"); return; }
+    if (r.code === "PIN") { uitloggen(r.message); return; }
+    if (r.result !== "success") { toonZoekResultaten(zoekLokaal(q), "fout"); return; }
+    toonZoekResultaten(r.resultaten, "klaar");
   }
 
   // ===== Venster openen en sluiten =====
@@ -1083,7 +1139,7 @@
     knop.textContent = "Bezig\u2026";
 
     let r = null;
-    try { r = await api(body); } catch (err) { r = null; }
+    try { r = await api(body, { timeout: 30000 }); } catch (err) { r = null; }   // geen automatische herhaling: dat kan dubbele reserveringen of mails geven
 
     if (!form) return;   // het venster is intussen gesloten
     form.bezig = false;
@@ -1149,7 +1205,7 @@
     knop.textContent = "Bezig\u2026";
     $("mFout").hidden = true;
     let r = null;
-    try { r = await api({ actie: "beheer_opschonen_voorbeeld", maanden: m }); } catch (err) { r = null; }
+    try { r = await api({ actie: "beheer_opschonen_voorbeeld", maanden: m }, { pogingen: 2 }); } catch (err) { r = null; }
     if (!modalOpen || !$("oVoorbeeld")) return;
     knop.disabled = false;
     knop.textContent = "Voorbeeld tonen";
@@ -1184,7 +1240,7 @@
     del.disabled = true;
     del.textContent = "Bezig met opschonen\u2026";
     let r = null;
-    try { r = await api({ actie: "beheer_opschonen", maanden: maanden, bevestig: true }); } catch (err) { r = null; }
+    try { r = await api({ actie: "beheer_opschonen", maanden: maanden, bevestig: true }, { timeout: 60000 }); } catch (err) { r = null; }
     if (!modalOpen || !$("oDel")) return;
     if (!r) {
       del.disabled = false;
