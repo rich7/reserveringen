@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -65,7 +64,8 @@
   /* Weekstrook */
   .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 12px; }
   .wdag { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px; border: 0; border-radius: 12px; background: #fff; color: var(--ink); }
-  .wdag:hover { background: var(--line); }
+  .wdag:hover:not(:disabled) { background: var(--line); }
+  .wdag:disabled { opacity: .35; cursor: default; }
   .wn { font-size: 11px; color: var(--muted); font-weight: 600; }
   .wd { font-size: 16px; font-weight: 700; }
   .wbalk { display: block; width: 80%; height: 5px; border-radius: 5px; background: var(--line); overflow: hidden; }
@@ -147,7 +147,7 @@
     <p>Voer de beheerpincode in om de reserveringen te bekijken.</p>
     <div class="melding" id="loginFout" role="alert" hidden></div>
     <form id="loginForm">
-      <label for="pin" class="sr" style="position:absolute;left:-9999px">Pincode</label>
+      <label for="pin" style="position:absolute;left:-9999px">Pincode</label>
       <input type="password" id="pin" placeholder="Pincode" autocomplete="current-password" required>
       <label class="check"><input type="checkbox" id="onthoud"> Onthoud op dit apparaat</label>
       <button type="submit" class="btn" id="loginKnop">Inloggen</button>
@@ -206,8 +206,7 @@
 (function () {
   "use strict";
 
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyaqAHC-i6eD2l5fDHPRpkBEGrgXKnnrc7HpQRSBtd9cPDKIuw8EyGO5TMaqUDZz3VG4g/exec";
-  
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyQ4uzJUGX7DboQKUantcR-K7-ywcz0Di_o3SDLQL5DnekVbE3JIK4qR14hEUKzBajpBg/exec";
 
   const STATUSSEN = ["Bevestigd", "Aangekomen", "No-show", "Geannuleerd"];
   const DAGNAMEN_KORT = ["Zo", "Ma", "Di", "Wo", "Do", "Vr", "Za"];
@@ -217,12 +216,19 @@
 
   const $ = function (id) { return document.getElementById(id); };
 
+  // ===== Gegevens in het geheugen (er wordt niets van de reserveringen in de browser opgeslagen) =====
   let pin = "";
-  let huidig = null;     // laatst geladen dagdata
-  let datum = "";        // getoonde datum
-  let kent = null;       // bekende boekingsnummers van de getoonde datum
+  let dagen = {};          // datum -> dagtotalen
+  let res = {};            // datum -> reserveringen (gesorteerd op tijd)
+  let venster = null;      // { van, tot } van de geladen periode
+  let restaurant = "Beheer";
+  let vandaag = "";
+  let datum = "";          // getoonde datum
+  let kent = new Set();    // bekende boekingsnummers, om nieuwe reserveringen te melden
+  let bijgewerktTekst = "";
   let reqTeller = 0;
   let zoekTeller = 0;
+  let pending = 0;         // aantal statuswijzigingen dat nog wordt opgeslagen
   let zoekTimer = null;
   let toastTimer = null;
 
@@ -272,8 +278,8 @@
   // ===== Server =====
   async function api(body) {
     // Geen custom headers: zo kunnen we het antwoord van Apps Script gewoon lezen
-    const res = await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(Object.assign({ pin: pin }, body)) });
-    return await res.json();
+    const res2 = await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify(Object.assign({ pin: pin }, body)) });
+    return await res2.json();
   }
 
   // ===== Inloggen / uitloggen =====
@@ -297,7 +303,7 @@
   function toonApp() { $("login").hidden = true; $("app").hidden = false; }
 
   function uitloggen(bericht) {
-    pin = ""; huidig = null; datum = ""; kent = null;
+    pin = ""; dagen = {}; res = {}; venster = null; datum = ""; vandaag = ""; kent = new Set();
     wisPin();
     toonLogin(bericht || "");
   }
@@ -309,15 +315,16 @@
     const knop = $("loginKnop");
     knop.disabled = true;
     knop.textContent = "Controleren…";
-    pin = invoer;
     $("loginFout").hidden = true;
+    pin = invoer;
     try {
-      const r = await api({ actie: "beheer_login" });
+      // Eén aanroep: controleert de pincode en haalt meteen de hele periode op
+      const r = await api({ actie: "beheer_bereik", van: "", tot: "" });
       if (r.result === "success") {
         bewaarPin($("onthoud").checked);
-        $("restaurant").textContent = r.restaurant || "Beheer";
         toonApp();
-        await laad("", false);
+        neem(r, false);
+        render();
       } else {
         pin = "";
         $("loginFout").textContent = r.message || "Inloggen mislukt.";
@@ -334,92 +341,117 @@
 
   $("uitloggen").addEventListener("click", function () { uitloggen(""); });
 
-  // ===== Dag laden =====
-  async function laad(d, stil) {
-    const mijn = ++reqTeller;
-    if (!stil && !huidig) {
-      $("lijst").textContent = "";
-      $("lijst").append(el("p", { class: "leeg", text: "Laden…" }));
-    }
-    let r;
-    try {
-      r = await api({ actie: "beheer_dag", datum: d || "" });
-    } catch (err) {
-      if (mijn !== reqTeller) return;
-      if (!stil) toonFout("Geen verbinding met de server.");
-      return;
-    }
-    if (mijn !== reqTeller) return;
-    if (r.result !== "success") {
-      if (r.code === "PIN") { uitloggen(r.message); return; }
-      if (!stil) toonFout(r.message || "Er ging iets mis.");
-      return;
-    }
-    verbergFout();
-    verwerk(r);
-  }
-
-  function verwerk(r) {
-    const nieuweDatum = r.datum !== datum;
-    datum = r.datum;
-    if (nieuweDatum || !kent) {
-      kent = new Set(r.reserveringen.map(function (x) { return x.id; }));
-    } else {
+  // ===== Gegevens laden =====
+  function neem(r, meldNieuw) {
+    restaurant = r.restaurant || "Beheer";
+    vandaag = r.vandaag;
+    dagen = {};
+    r.dagen.forEach(function (d) { dagen[d.datum] = d; });
+    res = {};
+    r.reserveringen.forEach(function (x) {
+      if (!res[x.datum]) res[x.datum] = [];
+      res[x.datum].push(x);
+    });
+    if (meldNieuw) {
       r.reserveringen.forEach(function (x) {
-        if (!kent.has(x.id)) {
-          kent.add(x.id);
-          toast("Nieuwe reservering: " + x.naam + " (" + x.tijd + ", " + x.personen + " pers.)");
-        }
+        if (!kent.has(x.id)) toast("Nieuwe reservering: " + x.naam + " (" + mooi(x.datum, true) + ", " + x.tijd + ", " + x.personen + " pers.)");
       });
     }
-    huidig = r;
-    render(r);
-  }
-
-  // ===== Weergave =====
-  function render(r) {
-    $("restaurant").textContent = r.restaurant || "Beheer";
-    $("datumTitel").textContent = mooi(r.datum);
-    $("datumKies").value = r.datum;
-    $("vandaagKnop").disabled = (r.datum === r.vandaag);
-    $("printTitel").textContent = (r.restaurant || "Reserveringen") + " – " + mooi(r.datum);
-    renderWeek(r);
-    renderSamenvatting(r);
-    renderLijst(r);
-    $("bijgewerkt").textContent = "Bijgewerkt om " +
+    kent = new Set(r.reserveringen.map(function (x) { return x.id; }));
+    venster = { van: r.van, tot: r.tot };
+    if (!datum) datum = r.vandaag;
+    bijgewerktTekst = "Bijgewerkt om " +
       new Date().toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }) +
       " · ververst automatisch elke minuut";
   }
 
-  function renderWeek(r) {
+  // Haalt een periode op. Geeft true terug als het gelukt is.
+  async function laadBereik(van, tot, opties) {
+    const o = opties || {};
+    const mijn = ++reqTeller;
+    if (venster && !o.stil) { $("bijgewerkt").textContent = "Verversen…"; }
+    let r;
+    try {
+      r = await api({ actie: "beheer_bereik", van: van, tot: tot });
+    } catch (err) {
+      if (mijn !== reqTeller) return false;
+      if (!o.stil) toonFout("Geen verbinding met de server.");
+      if (venster) $("bijgewerkt").textContent = bijgewerktTekst;
+      return false;
+    }
+    if (mijn !== reqTeller) return false;  // er is intussen iets nieuwers gestart
+    if (r.result !== "success") {
+      if (r.code === "PIN") { uitloggen(r.message); return false; }
+      if (!o.stil) toonFout(r.message || "Er ging iets mis.");
+      if (venster) $("bijgewerkt").textContent = bijgewerktTekst;
+      return false;
+    }
+    verbergFout();
+    neem(r, !!o.meldNieuw);
+    render();
+    return true;
+  }
+
+  function herlaad(stil) {
+    if (venster) return laadBereik(venster.van, venster.tot, { stil: !!stil, meldNieuw: true });
+    return laadBereik("", "", { meldNieuw: false });
+  }
+
+  // ===== Weergave =====
+  function render() {
+    if (!venster) return;
+    $("restaurant").textContent = restaurant;
+    $("datumTitel").textContent = mooi(datum);
+    $("datumKies").value = datum;
+    $("vandaagKnop").disabled = (datum === vandaag);
+    $("printTitel").textContent = restaurant + " – " + mooi(datum);
+    renderWeek();
+    renderSamenvatting();
+    renderLijst();
+    $("bijgewerkt").textContent = bijgewerktTekst;
+  }
+
+  function renderWeek() {
     const w = $("week");
     w.textContent = "";
-    r.week.forEach(function (d) {
+    const maandag = addDagen(datum, -((weekdag(datum) + 6) % 7));
+    for (let i = 0; i < 7; i++) {
+      const key = addDagen(maandag, i);
+      const d = dagen[key];
+      const nr = String(parseInt(key.slice(8), 10));
+      if (!d) {
+        w.append(el("button", { type: "button", class: "wdag", disabled: "", "aria-label": mooi(key) + ", niet geladen" }, [
+          el("span", { class: "wn", text: DAGNAMEN_KORT[weekdag(key)] }),
+          el("span", { class: "wd", text: nr })
+        ]));
+        continue;
+      }
       const pct = d.maxTafels > 0 ? Math.min(100, Math.round(d.bezetTafels / d.maxTafels * 100)) : (d.status === "VOL" ? 100 : 0);
-      const gekozen = d.datum === r.datum;
+      const gekozen = key === datum;
       w.append(el("button", {
         type: "button",
         class: "wdag s-" + d.status.toLowerCase() + (gekozen ? " sel" : ""),
         "aria-pressed": gekozen ? "true" : "false",
-        "aria-label": mooi(d.datum) + ", " + STATUS_TEKST[d.status] + ", " + d.reserveringen + " reserveringen",
-        onclick: function () { gaNaar(d.datum); }
+        "aria-label": mooi(key) + ", " + STATUS_TEKST[d.status] + ", " + d.reserveringen + " reserveringen",
+        onclick: function () { gaNaar(key); }
       }, [
-        el("span", { class: "wn", text: DAGNAMEN_KORT[weekdag(d.datum)] }),
-        el("span", { class: "wd", text: String(parseInt(d.datum.slice(8), 10)) }),
+        el("span", { class: "wn", text: DAGNAMEN_KORT[weekdag(key)] }),
+        el("span", { class: "wd", text: nr }),
         el("span", { class: "wbalk" }, [el("i", { style: "width:" + (d.gesloten ? 0 : pct) + "%" })]),
         el("span", { class: "wa", text: d.gesloten ? "dicht" : String(d.reserveringen) })
       ]));
-    });
+    }
   }
 
   function stat(waarde, label) {
     return el("div", null, [el("b", { text: String(waarde) }), el("span", { text: label })]);
   }
 
-  function renderSamenvatting(r) {
-    const d = r.dag;
+  function renderSamenvatting() {
+    const d = dagen[datum];
     const box = $("dagSamenvatting");
     box.textContent = "";
+    if (!d) { box.append(el("p", { class: "leeg", text: "Geen gegevens voor deze dag." })); return; }
     const pct = d.maxTafels > 0 ? Math.min(100, Math.round(d.bezetTafels / d.maxTafels * 100)) : (d.status === "VOL" ? 100 : 0);
     box.append(
       el("div", { class: "sam-top" }, [
@@ -435,16 +467,18 @@
     );
   }
 
-  function renderLijst(r) {
+  function renderLijst() {
     const lijst = $("lijst");
     lijst.textContent = "";
-    if (!r.reserveringen.length) {
-      lijst.append(el("p", { class: "leeg", text: r.dag.gesloten ? "We zijn deze dag gesloten." : "Geen reserveringen voor deze dag." }));
+    const items = res[datum] || [];
+    const d = dagen[datum];
+    if (!items.length) {
+      lijst.append(el("p", { class: "leeg", text: d && d.gesloten ? "We zijn deze dag gesloten." : "Geen reserveringen voor deze dag." }));
       return;
     }
     const groepen = {};
     const volgorde = [];
-    r.reserveringen.forEach(function (x) {
+    items.forEach(function (x) {
       const t = x.tijd || "";
       if (!groepen[t]) { groepen[t] = []; volgorde.push(t); }
       groepen[t].push(x);
@@ -492,6 +526,18 @@
     ]);
   }
 
+  // Dagtotalen opnieuw berekenen na een lokale wijziging
+  function herbereken(k) {
+    const d = dagen[k];
+    if (!d) return;
+    let t = 0, p = 0, a = 0;
+    (res[k] || []).forEach(function (x) {
+      if (x.status !== "Geannuleerd") { t += x.tafels; p += x.personen; a++; }
+    });
+    d.bezetTafels = t; d.personen = p; d.reserveringen = a;
+  }
+
+  // Statuswijziging: direct zichtbaar, daarna opslaan op de achtergrond
   async function wijzigStatus(x, sel) {
     const nieuw = sel.value;
     const oud = x.status;
@@ -500,43 +546,65 @@
       sel.value = oud;
       return;
     }
-    sel.disabled = true;
+    reqTeller++;   // een verversing die nog onderweg is, mag deze wijziging niet overschrijven
+    pending++;
+    x.status = nieuw;
+    herbereken(x.datum);
+    render();
     try {
       const r = await api({ actie: "beheer_status", id: x.id, status: nieuw });
       if (r.result === "success") {
-        x.status = nieuw;
         toast(x.naam + ": " + nieuw.toLowerCase());
-        await laad(datum, true);
       } else {
-        sel.value = oud;
-        if (r.code === "PIN") uitloggen(r.message); else toast(r.message || "Wijzigen mislukt.", true);
+        x.status = oud; herbereken(x.datum); render();
+        if (r.code === "PIN") { pending--; uitloggen(r.message); return; }
+        toast(r.message || "Wijzigen mislukt.", true);
       }
     } catch (err) {
-      sel.value = oud;
+      x.status = oud; herbereken(x.datum); render();
       toast("Geen verbinding. De wijziging is niet opgeslagen.", true);
     }
-    sel.disabled = false;
+    pending--;
+    if (pending === 0 && venster) herlaad(true);   // haalt o.a. de juiste dagstatus (vrij/beperkt/vol) op
   }
 
   // ===== Navigatie =====
   function toonDag() { $("zoekView").hidden = true; $("dagView").hidden = false; }
 
-  function gaNaar(d) {
+  function toonLaden() {
+    $("lijst").textContent = "";
+    $("lijst").append(el("p", { class: "leeg", text: "Laden…" }));
+  }
+
+  async function gaNaar(d) {
     $("zoek").value = "";
     $("zoekWis").hidden = true;
     toonDag();
-    laad(d, false);
+    const maandag = addDagen(d, -((weekdag(d) + 6) % 7));
+    // Binnen de geladen periode? Dan direct tonen, zonder wachten
+    if (venster && maandag >= venster.van && addDagen(maandag, 6) <= venster.tot) {
+      datum = d;
+      render();
+      return;
+    }
+    // Buiten de geladen periode: één keer een nieuwe periode ophalen
+    const vorige = datum;
+    datum = d;
+    $("datumTitel").textContent = mooi(d);
+    toonLaden();
+    const ok = await laadBereik(addDagen(d, -14), addDagen(d, 42), { meldNieuw: false });
+    if (!ok && datum === d) { datum = vorige; if (venster) render(); }
   }
 
   $("vorigeDag").addEventListener("click", function () { if (datum) gaNaar(addDagen(datum, -1)); });
   $("volgendeDag").addEventListener("click", function () { if (datum) gaNaar(addDagen(datum, 1)); });
-  $("vandaagKnop").addEventListener("click", function () { gaNaar(huidig ? huidig.vandaag : ""); });
+  $("vandaagKnop").addEventListener("click", function () { if (vandaag) gaNaar(vandaag); });
   $("datumKies").addEventListener("change", function (e) { if (e.target.value) gaNaar(e.target.value); });
-  $("vernieuw").addEventListener("click", function () { laad(datum, false); });
-  $("opnieuw").addEventListener("click", function () { laad(datum, false); });
+  $("vernieuw").addEventListener("click", function () { herlaad(false); });
+  $("opnieuw").addEventListener("click", function () { herlaad(false); });
   $("printKnop").addEventListener("click", function () { window.print(); });
 
-  // ===== Zoeken =====
+  // ===== Zoeken (over alle dagen, dus via de server) =====
   $("zoek").addEventListener("input", function () {
     clearTimeout(zoekTimer);
     const q = $("zoek").value.trim();
@@ -590,16 +658,14 @@
     });
   }
 
-  // ===== Automatisch verversen =====
-  setInterval(function () {
-    if ($("app").hidden || document.hidden || !datum) return;
-    if ($("zoek").value.trim().length >= 2) return;
-    if (document.activeElement && document.activeElement.tagName === "SELECT") return;
-    laad(datum, true);
-  }, 60000);
-  document.addEventListener("visibilitychange", function () {
-    if (!document.hidden && !$("app").hidden && datum && $("zoek").value.trim().length < 2) laad(datum, true);
-  });
+  // ===== Automatisch verversen op de achtergrond =====
+  function kanVerversen() {
+    return !$("app").hidden && !document.hidden && venster && pending === 0 &&
+      $("zoek").value.trim().length < 2 &&
+      !(document.activeElement && document.activeElement.tagName === "SELECT");
+  }
+  setInterval(function () { if (kanVerversen()) herlaad(true); }, 60000);
+  document.addEventListener("visibilitychange", function () { if (kanVerversen()) herlaad(true); });
 
   // ===== Start =====
   (function start() {
@@ -608,9 +674,10 @@
     if (!p) { toonLogin(""); return; }
     pin = p;
     toonApp();
-    laad("", false);
+    toonLaden();
+    laadBereik("", "", { meldNieuw: false });
   })();
 })();
 </script>
 </body>
-</html>
+</html>g
